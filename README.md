@@ -48,10 +48,10 @@ A URL em uso aparece na aba **Perfil**. Para forçar outra: `cp .env.example .en
 O CI publica o app com **EAS Update** (projeto [`@superappkoin/koin`](https://expo.dev/accounts/superappkoin/projects/koin)): todo merge na `main` vai para o canal `preview` (API de homologação), e todo PR ganha um comentário com o QR code da sua versão. Não precisa de Mac ligado nem de estar na mesma rede.
 
 1. Peça ao Grupo 1 um convite para a organização `superappkoin` no expo.dev (papel *Viewer*) e um usuário na API de homologação.
-2. Instale o **Expo Go** e entre com a sua conta Expo.
+2. Instale o **Expo Go** (versão com suporte ao SDK 58) e entre com a sua conta Expo. O Expo Go só abre o projeto para contas com acesso a ele.
 3. Abra `exp://u.expo.dev/9d8026b4-723d-4f73-87f2-16c484f8585e?channel-name=preview` no celular (ou o QR code do PR).
 
-A versão de runtime segue o SDK (`exposdk:57.0.0`) para funcionar no Expo Go. Mudou o SDK ou entrou módulo nativo fora do Expo Go? A atualização deixa de abrir nas versões instaladas: é preciso um build novo (`eas build --profile preview`).
+A versão de runtime segue o SDK (`exposdk:58.0.0`) para funcionar no Expo Go. Mudou o SDK ou entrou módulo nativo fora do Expo Go? A atualização deixa de abrir nas versões instaladas: é preciso um build novo (`eas build --profile preview`).
 
 ## Build e publicação (EAS)
 
@@ -93,7 +93,7 @@ O restante das telas do web (cartões, faturas, upload de documentos, orçamento
 
 ## Stack
 
-Expo SDK 57, React Native 0.86, TypeScript, expo-router, TanStack Query, Zustand, axios, zod.
+Expo SDK 58, React Native 0.88, TypeScript, expo-router, TanStack Query, Zustand, axios, zod.
 
 ## Licença
 

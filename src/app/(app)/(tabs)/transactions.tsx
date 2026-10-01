@@ -87,7 +87,7 @@ export default function TransactionsScreen() {
             onRetry={query.refetch}
           />
         }
-        ListFooterComponent={query.isFetchingNextPage ? <ActivityIndicator style={styles.footer} /> : null}
+        ListFooterComponent={query.isFetchingNextPage ? <ActivityIndicator style={styles.footer} /> : undefined}
       />
 
       <Pressable

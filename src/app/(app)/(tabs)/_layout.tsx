@@ -9,7 +9,7 @@ type IconName = ComponentProps<typeof Ionicons>['name']
 
 function icon(name: IconName) {
   return function TabIcon({ color, size }: { color: ColorValue; size: number }) {
-    return <Ionicons name={name} color={color} size={size} />
+    return <Ionicons name={name} color={typeof color === 'string' ? color : undefined} size={size} />
   }
 }
 
