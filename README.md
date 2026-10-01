@@ -9,7 +9,7 @@ A API e a infraestrutura ficam em **[koin-api](https://github.com/AppFinanceiro-
 
 ## Rodar
 
-Requisitos: Node 20+, app **Expo Go** no celular (ou emulador Android / simulador iOS) e a API rodando.
+Requisitos: Node 22+, app **Expo Go** no celular (ou emulador Android / simulador iOS) e a API rodando.
 
 ```bash
 # 1. API (no repositório koin-api)
