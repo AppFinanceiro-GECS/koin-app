@@ -39,7 +39,7 @@ export default function AccountsScreen() {
             <Text style={styles.totalLabel}>Saldo total</Text>
             <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
           </Card>
-        ) : null
+        ) : undefined
       }
       renderItem={({ item }) => (
         <Card style={styles.account}>
