@@ -7,16 +7,23 @@
     "development": {
       "developmentClient": false,
       "distribution": "internal",
-      "env": { "EXPO_PUBLIC_API_URL": "http://localhost:8000" }
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://localhost:8000"
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_URL": "https://hml.144-22-232-63.sslip.io" }
+      "android": {
+        "buildType": "apk"
+      },
+      "channel": "preview",
+      "environment": "preview"
     },
     "production": {
       "autoIncrement": true,
-      "env": { "EXPO_PUBLIC_API_URL": "https://api.144-22-232-63.sslip.io" }
+      "channel": "production",
+      "environment": "production"
     }
   },
   "submit": {

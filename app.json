@@ -41,6 +41,19 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "owner": "superappkoin",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "9d8026b4-723d-4f73-87f2-16c484f8585e"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9d8026b4-723d-4f73-87f2-16c484f8585e"
     }
   }
 }

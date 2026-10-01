@@ -39,3 +39,42 @@ jobs:
         run: npx expo-doctor
       - name: Export bundles (Android + iOS)
         run: npx expo export --platform android --platform ios --output-dir dist
+
+  # EAS Update: o app de homologação (APK/Expo Go) recebe a versão nova ao abrir, sem build novo.
+  # main -> canal preview (API de hml), prod -> canal production. PR -> branch pr-N com QR code no PR.
+  # Só JS e assets; mudou código nativo ou o SDK? Precisa de build novo (eas build). Ver README.
+  eas-update:
+    name: EAS Update (${{ github.event_name == 'pull_request' && format('PR #{0}', github.event.number) || github.ref_name }})
+    runs-on: ubuntu-latest
+    needs: [secret-scan, check]
+    # PR de fork não recebe o EXPO_TOKEN
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    concurrency:
+      group: eas-update-${{ github.event.number || github.ref_name }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install dependencies
+        run: npm ci
+      - name: Publicar no canal da branch
+        if: github.event_name == 'push'
+        env:
+          CHANNEL: ${{ github.ref_name == 'prod' && 'production' || 'preview' }}
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: eas update --channel "$CHANNEL" --environment "$CHANNEL" --message "$(printf '%s' "$MESSAGE" | head -n1)" --non-interactive
+      - name: Publicar o PR e comentar o QR code
+        if: github.event_name == 'pull_request'
+        uses: expo/expo-github-action/preview@v8
+        with:
+          command: eas update --branch pr-${{ github.event.number }} --environment preview --message "PR #${{ github.event.number }}" --non-interactive

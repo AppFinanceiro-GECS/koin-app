@@ -43,6 +43,16 @@ A URL em uso aparece na aba **Perfil**. Para forçar outra: `cp .env.example .en
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run doctor` | expo-doctor (dependências e config) |
 
+## Testar a homologação no celular (equipe e cliente)
+
+O CI publica o app com **EAS Update** (projeto [`@superappkoin/koin`](https://expo.dev/accounts/superappkoin/projects/koin)): todo merge na `main` vai para o canal `preview` (API de homologação), e todo PR ganha um comentário com o QR code da sua versão. Não precisa de Mac ligado nem de estar na mesma rede.
+
+1. Peça ao Grupo 1 um convite para a organização `superappkoin` no expo.dev (papel *Viewer*) e um usuário na API de homologação.
+2. Instale o **Expo Go** e entre com a sua conta Expo.
+3. Abra `exp://u.expo.dev/9d8026b4-723d-4f73-87f2-16c484f8585e?channel-name=preview` no celular (ou o QR code do PR).
+
+A versão de runtime segue o SDK (`exposdk:57.0.0`) para funcionar no Expo Go. Mudou o SDK ou entrou módulo nativo fora do Expo Go? A atualização deixa de abrir nas versões instaladas: é preciso um build novo (`eas build --profile preview`).
+
 ## Build e publicação (EAS)
 
 ```bash
@@ -52,7 +62,7 @@ eas build --profile production --platform all    # AAB (Play Store) e IPA (App S
 eas submit --platform ios                        # envia para o TestFlight/App Store Connect
 ```
 
-Perfis em [`eas.json`](eas.json): `preview` aponta para a homologação (`https://hml.144-22-232-63.sslip.io`, branch `main` do koin-api) e `production` para a produção (`https://api.144-22-232-63.sslip.io`, branch `prod`). Troque quando houver domínio próprio. Identificador do app: `com.koin.app` (Android e iOS). O app se chamava Biveto (`com.biveto.app`, citado no `assetlinks.json` da antiga PWA/TWA); como ainda não foi publicado com o nome novo, o Koin entra nas lojas como um app novo.
+Perfis em [`eas.json`](eas.json): `preview` usa a API de homologação e `production` a de produção. A URL fica na variável `EXPO_PUBLIC_API_URL` dos environments do EAS (`eas env:list --environment preview`); troque lá quando houver domínio próprio. Identificador do app: `com.koin.app` (Android e iOS). O app se chamava Biveto (`com.biveto.app`, citado no `assetlinks.json` da antiga PWA/TWA); como ainda não foi publicado com o nome novo, o Koin entra nas lojas como um app novo.
 
 ## Estrutura
 
