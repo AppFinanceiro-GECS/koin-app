@@ -73,8 +73,12 @@ jobs:
           CHANNEL: ${{ github.ref_name == 'prod' && 'production' || 'preview' }}
           MESSAGE: ${{ github.event.head_commit.message }}
         run: eas update --channel "$CHANNEL" --environment "$CHANNEL" --message "$(printf '%s' "$MESSAGE" | head -n1)" --non-interactive
+      # A action do preview divide o comando nos espaços e lê a saída como JSON: sem --environment
+      # (ele imprime texto antes do JSON) e sem espaços na mensagem. A URL da API vem da variável do repo.
       - name: Publicar o PR e comentar o QR code
         if: github.event_name == 'pull_request'
         uses: expo/expo-github-action/preview@v8
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL_PREVIEW }}
         with:
-          command: eas update --branch pr-${{ github.event.number }} --environment preview --message "PR #${{ github.event.number }}" --non-interactive
+          command: eas update --branch pr-${{ github.event.number }} --message PR-${{ github.event.number }}
