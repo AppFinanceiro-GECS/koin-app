@@ -61,7 +61,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - uses: expo/expo-github-action@v8
+      - uses: expo/expo-github-action@v9
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
@@ -77,7 +77,7 @@ jobs:
       # (ele imprime texto antes do JSON) e sem espaços na mensagem. A URL da API vem da variável do repo.
       - name: Publicar o PR e comentar o QR code
         if: github.event_name == 'pull_request'
-        uses: expo/expo-github-action/preview@v8
+        uses: expo/expo-github-action/preview@v9
         env:
           EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL_PREVIEW }}
         with:
