@@ -18,3 +18,25 @@ export const colors = {
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const
 export const radius = { sm: 8, md: 12, lg: 16, pill: 999 } as const
+
+// Tema escuro (Figma: Desktop / 01 · Autenticação e convite)
+export const darkTheme = {
+  background: '#080512',
+  surface: '#120e1e',
+  surfaceSecondary: '#1b152b',
+  border: '#2b233c',
+  borderFocus: '#7c3aed',
+  primary: '#7c3aed',
+  primaryPressed: '#6d28d9',
+  accent: '#a78bfa',
+  accentLight: '#ddd6fe',
+  text: '#f8fafc',
+  textSecondary: '#a7a1b7',
+  textMuted: '#625975',
+  error: '#f43f5e',
+  errorBackground: '#2a121d',
+  errorBorder: '#881337',
+  success: '#34d399',
+  successBackground: '#0a291f',
+  successBorder: '#065f46',
+} as const

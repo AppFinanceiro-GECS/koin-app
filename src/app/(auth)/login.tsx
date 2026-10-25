@@ -3,7 +3,6 @@ import { StatusBar } from 'expo-status-bar'
 import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
-  Alert,
   Keyboard,
   KeyboardAvoidingView,
   LayoutAnimation,
@@ -17,9 +16,11 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { KoinLogo } from '@/components/KoinLogo'
 import { getApiErrorMessage } from '@/lib/errors'
 import { authApi } from '@/services/auth.api'
 import { useAuthStore } from '@/stores/authStore'
+import { darkTheme } from '@/theme/colors'
 
 export default function LoginScreen() {
   const signIn = useAuthStore((s) => s.signIn)
@@ -66,16 +67,9 @@ export default function LoginScreen() {
     }
   }
 
-  function handleForgotPassword() {
-    Alert.alert(
-      'Recuperar senha',
-      'Entre em contato com o suporte ou com seu grupo familiar para recuperar o acesso à sua conta.',
-    )
-  }
-
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -92,19 +86,15 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.mainContainer}>
-            {/* Top Logo box */}
-            {!isKeyboardVisible && (
-              <View style={styles.logoBox}>
-                <Text style={styles.logoText}>Logo</Text>
-              </View>
-            )}
-
-            {/* Title & Subtitle */}
-            <View style={styles.titleContainer}>
+            {/* Header / Brand lockup */}
+            <View style={[styles.header, isKeyboardVisible && styles.headerCompact]}>
+              <KoinLogo size={isKeyboardVisible ? 0.8 : 1} />
               <Text style={styles.title}>Entrar</Text>
-              <Text style={styles.subtitle}>
-                O acesso ao app é feito por convite. Já tem conta? Entre com seu e-mail.
-              </Text>
+              {!isKeyboardVisible && (
+                <Text style={styles.subtitle}>
+                  O acesso ao app é feito por convite. Já tem conta? Entre com seu e-mail.
+                </Text>
+              )}
             </View>
 
             {/* Form Fields */}
@@ -114,13 +104,16 @@ export default function LoginScreen() {
                 <TextInput
                   style={[styles.input, error && styles.inputError]}
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(val) => {
+                    setEmail(val)
+                    if (error) setError(null)
+                  }}
                   autoCapitalize="none"
                   autoComplete="email"
                   keyboardType="email-address"
                   textContentType="emailAddress"
                   placeholder="pedro@email.com"
-                  placeholderTextColor="#999999"
+                  placeholderTextColor={darkTheme.textMuted}
                 />
               </View>
 
@@ -129,56 +122,63 @@ export default function LoginScreen() {
                 <TextInput
                   style={[styles.input, error && styles.inputError]}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(val) => {
+                    setPassword(val)
+                    if (error) setError(null)
+                  }}
                   secureTextEntry
                   autoComplete="password"
                   textContentType="password"
                   placeholder="••••••••"
-                  placeholderTextColor="#999999"
+                  placeholderTextColor={darkTheme.textMuted}
                   onSubmitEditing={handleSubmit}
                   returnKeyType="go"
                 />
               </View>
 
               <Pressable
-                onPress={handleForgotPassword}
+                onPress={() => router.push('/forgot-password' as any)}
                 hitSlop={8}
                 style={styles.forgotPasswordButton}
               >
                 <Text style={styles.forgotPasswordText}>Esqueci minha senha</Text>
               </Pressable>
 
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+              {error ? (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
 
-              {/* Primary button: Entrar */}
+              {/* Botão primário: Entrar */}
               <Pressable
                 style={({ pressed }) => [
                   styles.primaryButton,
-                  pressed && styles.buttonPressed,
+                  pressed && styles.primaryButtonPressed,
                   loading && styles.buttonDisabled,
                 ]}
                 onPress={handleSubmit}
                 disabled={loading}
               >
                 {loading ? (
-                  <ActivityIndicator color="#ffffff" />
+                  <ActivityIndicator color={darkTheme.text} />
                 ) : (
                   <Text style={styles.primaryButtonText}>Entrar</Text>
                 )}
               </Pressable>
 
-              {/* Separator: ou */}
+              {/* Separador: ou */}
               <View style={styles.separatorContainer}>
                 <View style={styles.separatorLine} />
                 <Text style={styles.separatorText}>ou</Text>
                 <View style={styles.separatorLine} />
               </View>
 
-              {/* Secondary button: Tenho um convite */}
+              {/* Botão secundário: Tenho um convite */}
               <Pressable
                 style={({ pressed }) => [
                   styles.secondaryButton,
-                  pressed && styles.buttonPressed,
+                  pressed && styles.secondaryButtonPressed,
                 ]}
                 onPress={() => router.push('/invite')}
               >
@@ -187,7 +187,7 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          {/* Footer */}
+          {/* Rodapé */}
           {!isKeyboardVisible && (
             <View style={styles.footer}>
               <Text style={styles.footerText}>
@@ -204,7 +204,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: darkTheme.background,
   },
   flex: {
     flex: 1,
@@ -212,111 +212,114 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: 36,
+    paddingHorizontal: 16,
+    paddingTop: 24,
     paddingBottom: 16,
   },
   contentKeyboardActive: {
     justifyContent: 'flex-start',
-    paddingTop: 16,
+    paddingTop: 12,
     paddingBottom: 24,
   },
   mainContainer: {
-    gap: 18,
+    gap: 16,
   },
-  logoBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: '#e3e3e3',
-    alignItems: 'center',
-    justifyContent: 'center',
+  header: {
+    gap: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
-  logoText: {
-    fontSize: 12,
-    color: '#737373',
-    fontWeight: '400',
-  },
-  titleContainer: {
-    gap: 6,
+  headerCompact: {
+    gap: 8,
+    paddingTop: 0,
+    paddingBottom: 4,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    lineHeight: 36,
+    fontSize: 30,
+    fontWeight: '600',
+    color: darkTheme.text,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 15,
-    fontWeight: '400',
-    color: '#737373',
-    lineHeight: 21,
+    fontSize: 14,
+    color: darkTheme.textSecondary,
+    lineHeight: 20,
   },
   form: {
-    gap: 18,
+    gap: 16,
   },
   fieldContainer: {
     gap: 6,
   },
   label: {
     fontSize: 13,
-    fontWeight: '500',
-    color: '#737373',
+    color: darkTheme.textSecondary,
   },
   input: {
     height: 50,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#cccccc',
-    backgroundColor: '#ffffff',
+    borderColor: darkTheme.border,
+    backgroundColor: darkTheme.surface,
     paddingHorizontal: 14,
-    fontSize: 16,
-    color: '#1a1a1a',
+    fontSize: 15,
+    color: darkTheme.text,
   },
   inputError: {
-    borderColor: '#dc2626',
+    borderColor: darkTheme.error,
   },
   forgotPasswordButton: {
     alignSelf: 'flex-start',
+    paddingVertical: 2,
   },
   forgotPasswordText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#737373',
+    color: darkTheme.accent,
+  },
+  errorContainer: {
+    backgroundColor: darkTheme.errorBackground,
+    borderColor: darkTheme.errorBorder,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   errorText: {
-    color: '#dc2626',
-    fontSize: 14,
+    color: darkTheme.error,
+    fontSize: 13,
     textAlign: 'center',
   },
   primaryButton: {
-    height: 52,
+    height: 48,
     borderRadius: 12,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: darkTheme.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  primaryButtonPressed: {
+    backgroundColor: darkTheme.primaryPressed,
   },
   primaryButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#ffffff',
+    color: darkTheme.text,
   },
   secondaryButton: {
-    height: 52,
+    height: 48,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#cccccc',
-    backgroundColor: '#ffffff',
+    borderColor: darkTheme.border,
+    backgroundColor: darkTheme.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
+  secondaryButtonPressed: {
+    backgroundColor: darkTheme.border,
   },
-  buttonPressed: {
-    opacity: 0.8,
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: darkTheme.text,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -325,16 +328,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    paddingVertical: 4,
   },
   separatorLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#e3e3e3',
+    backgroundColor: darkTheme.border,
   },
   separatorText: {
     fontSize: 13,
-    color: '#737373',
-    fontWeight: '400',
+    color: darkTheme.textSecondary,
   },
   footer: {
     paddingTop: 24,
@@ -343,7 +346,7 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: 13,
-    color: '#737373',
+    color: darkTheme.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
   },
