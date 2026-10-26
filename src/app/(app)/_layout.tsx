@@ -28,6 +28,7 @@ export default function AppLayout() {
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="transaction/new" options={{ title: 'Nova transação', presentation: 'modal' }} />
+      <Stack.Screen name="transaction/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="account/modal" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="credit-card/modal" options={{ headerShown: false, presentation: 'modal' }} />
     </Stack>

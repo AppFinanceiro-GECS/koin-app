@@ -4,6 +4,7 @@ import type { Category, Paginated, Transaction, TransactionCreate } from '../typ
 export const transactionsApi = {
   list: (params?: Record<string, unknown>) =>
     api.get<Paginated<Transaction>>('/transactions', { params }),
+  getById: (id: number) => api.get<Transaction>(`/transactions/${id}`),
   create: (data: TransactionCreate) => api.post<Transaction>('/transactions', data),
   confirm: (data: unknown) => api.post('/transactions/confirm', data),
   batchConfirm: (data: {

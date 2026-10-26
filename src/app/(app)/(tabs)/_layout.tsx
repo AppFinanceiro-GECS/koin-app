@@ -17,7 +17,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Início', headerShown: false }} />
       <Tabs.Screen name="accounts" options={{ title: 'Cartões', headerShown: false }} />
-      <Tabs.Screen name="transactions" options={{ title: 'Movimentação', headerShown: true }} />
+      <Tabs.Screen name="transactions" options={{ title: 'Movimentação', headerShown: false }} />
       <Tabs.Screen name="profile" options={{ title: 'Mais', headerShown: false }} />
     </Tabs>
   )
