@@ -149,7 +149,7 @@ export default function ProfileScreen() {
             icon="shield"
             title="Privacidade e dados"
             subtitle="Exportar dados e excluir conta"
-            onPress={() => Alert.alert('Privacidade', 'Opções de exportação e segurança.')}
+            onPress={() => router.push('/privacy')}
           />
         </View>
 

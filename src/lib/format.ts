@@ -30,3 +30,9 @@ export function parseAmount(input: string): number {
 
 /** Nome do mês em minúsculas, para frases ("compartilhado em outubro"). month: 1-12 */
 export const monthName = (month: number) => MONTHS[month - 1].toLowerCase()
+
+/** ["Marina"] -> "Marina"; ["Marina", "Lucas"] -> "Marina ou Lucas"; 3+ -> "A, B ou C". */
+export function joinWithOr(items: string[]): string {
+  if (items.length <= 1) return items.join('')
+  return `${items.slice(0, -1).join(', ')} ou ${items[items.length - 1]}`
+}

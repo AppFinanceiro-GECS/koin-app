@@ -28,6 +28,8 @@ export default function AppLayout() {
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="monthly-summary" options={{ headerShown: false }} />
+      <Stack.Screen name="privacy" options={{ headerShown: false }} />
+      <Stack.Screen name="delete-account" options={{ headerShown: false }} />
       <Stack.Screen name="family/index" options={{ headerShown: false }} />
       <Stack.Screen name="family/invite" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="transaction/new" options={{ title: 'Nova transação', presentation: 'modal' }} />
