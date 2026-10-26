@@ -36,3 +36,8 @@ export function joinWithOr(items: string[]): string {
   if (items.length <= 1) return items.join('')
   return `${items.slice(0, -1).join(', ')} ou ${items[items.length - 1]}`
 }
+
+/** A API devolve datetimes em UTC sem sufixo de fuso ("2026-10-01T13:05:00"); sem o "Z" o JS leria como horário local. */
+export function parseApiDate(iso: string): Date {
+  return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`)
+}

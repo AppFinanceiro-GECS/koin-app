@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { ScreenHeader } from '@/components/ScreenHeader'
 import { getApiErrorMessage } from '@/lib/errors'
 import { familyDisplayName } from '@/lib/family'
+import { parseApiDate } from '@/lib/format'
 import { familyApi } from '@/services/settings.api'
 import { darkTheme } from '@/theme/colors'
 import type { FamilyInviteResponse } from '@/types/api'
@@ -26,8 +27,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /** "26/10 às 16:44" no fuso local. */
 function formatExpiry(iso: string): string {
-  // A API devolve datetime UTC sem sufixo de fuso.
-  const date = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`)
+  const date = parseApiDate(iso)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)} às ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }

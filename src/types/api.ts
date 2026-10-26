@@ -199,3 +199,13 @@ export interface FamilyInviteResponse {
   status: string
   expires_at: string
 }
+
+export interface DocumentSummary {
+  id: number
+  original_filename: string
+  mime_type: string
+  status: string
+  document_type: string | null
+  created_at: string
+  processed_at: string | null
+}

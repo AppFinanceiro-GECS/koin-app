@@ -1,5 +1,5 @@
 import api from './api'
-import type { InvoiceOverview } from '../types/api'
+import type { DocumentSummary, InvoiceOverview } from '../types/api'
 
 /** Arquivo local no formato que o FormData do React Native aceita (ex.: resultado do expo-document-picker). */
 export interface UploadFile {
@@ -39,7 +39,7 @@ export const documentsApi = {
     })
   },
   list: () => api.get('/documents'),
-  get: (id: number) => api.get(`/documents/${id}`),
+  get: (id: number) => api.get<DocumentSummary>(`/documents/${id}`),
 }
 
 export const invoicesApi = {

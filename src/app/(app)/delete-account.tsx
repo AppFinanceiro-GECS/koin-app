@@ -1,4 +1,3 @@
-import Feather from '@expo/vector-icons/Feather'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { router } from 'expo-router'
 import { useState } from 'react'
@@ -19,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { IconTile } from '@/components/IconTile'
 import { ScreenHeader } from '@/components/ScreenHeader'
 import { Tag } from '@/components/Tag'
+import { WarningCard } from '@/components/WarningCard'
 import { getApiErrorMessage } from '@/lib/errors'
 import { familyDisplayName, memberFirstName } from '@/lib/family'
 import { joinWithOr } from '@/lib/format'
@@ -105,16 +105,10 @@ export default function DeleteAccountScreen() {
             Você está solicitando a exclusão da conta de {user?.name ?? 'sua conta'}.
           </Text>
 
-          <View style={styles.warningCard}>
-            <Feather name="alert-triangle" size={18} color={WARNING} style={styles.warningIcon} />
-            <View style={styles.warningBody}>
-              <Text style={styles.warningTitle}>Seus dados pessoais</Text>
-              <Text style={styles.warningText}>
-                A exclusão encerra seu acesso. O tratamento dos registros pessoais e da retenção deve
-                seguir a política ainda a validar.
-              </Text>
-            </View>
-          </View>
+          <WarningCard title="Seus dados pessoais">
+            A exclusão encerra seu acesso. O tratamento dos registros pessoais e da retenção deve seguir a
+            política ainda a validar.
+          </WarningCard>
 
           {family && others.length > 0 && (
             <View style={styles.familyCard}>
@@ -185,8 +179,6 @@ export default function DeleteAccountScreen() {
   )
 }
 
-const WARNING = '#fbbf24'
-
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
@@ -219,32 +211,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: darkTheme.textSecondary,
     marginTop: -6,
-  },
-  warningCard: {
-    flexDirection: 'row',
-    gap: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#5b3a12',
-    backgroundColor: '#1a120a',
-    padding: 14,
-  },
-  warningIcon: {
-    marginTop: 1,
-  },
-  warningBody: {
-    flex: 1,
-    gap: 4,
-  },
-  warningTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: WARNING,
-  },
-  warningText: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: darkTheme.textSecondary,
   },
   familyCard: {
     gap: 12,
