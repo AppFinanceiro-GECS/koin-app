@@ -197,7 +197,7 @@ export const installmentService = {
     try {
       const response = await api.get(`/installments/${seriesId}/details`)
       return response.data as InstallmentStatusResponse[]
-    } catch (error) {
+    } catch {
       return generateMockInstallmentDetails(seriesId)
     }
   },

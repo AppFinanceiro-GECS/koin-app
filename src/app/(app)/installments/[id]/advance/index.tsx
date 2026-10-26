@@ -21,7 +21,7 @@ export default function AdvanceInstallmentsScreen() {
   const seriesId = id ? parseInt(id) : null
 
   const { data: series, isLoading, error } = useInstallmentDetail(seriesId)
-  const { data: installments, isLoading: detailsLoading } = useInstallmentDetails(seriesId)
+  const { data: installments } = useInstallmentDetails(seriesId)
 
   const [selectedInstallments, setSelectedInstallments] = useState<number[]>([])
 

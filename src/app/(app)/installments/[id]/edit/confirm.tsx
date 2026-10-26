@@ -16,7 +16,7 @@ import { darkTheme } from '@/theme/colors'
 
 export default function ConfirmEditScreen() {
   const insets = useSafeAreaInsets()
-  const { id, edited } = useLocalSearchParams<{ id: string; edited: string }>()
+  const { id } = useLocalSearchParams<{ id: string }>()
   const seriesId = id ? parseInt(id) : null
 
   const { data: series, isLoading, error } = useInstallmentDetail(seriesId)

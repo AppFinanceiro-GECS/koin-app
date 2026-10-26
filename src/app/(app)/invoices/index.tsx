@@ -3,7 +3,6 @@ import { useRouter } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
 import { invoiceService } from '@/services/invoiceService'
-import type { InvoiceResponse } from '@/types/invoice'
 
 export default function InvoicesScreen() {
   const router = useRouter()

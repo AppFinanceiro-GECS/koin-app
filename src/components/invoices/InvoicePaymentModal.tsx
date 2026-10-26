@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
-import DateTimePicker from '@react-native-community/datetimepicker'
-import { accountService } from '@/services/accountService'
 import { invoiceService } from '@/services/invoiceService'
-import type { AccountResponse } from '@/types/account'
 import type { InvoiceResponse } from '@/types/invoice'
+
+interface Account {
+  id: number
+  name: string
+  balance?: number
+}
 
 interface InvoicePaymentModalProps {
   visible: boolean
@@ -29,16 +32,16 @@ export function InvoicePaymentModal({
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  const mockAccounts: Account[] = [
+    { id: 1, name: 'Conta Principal', balance: 5000 },
+    { id: 2, name: 'Conta Poupança', balance: 2500 },
+  ]
+
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts'],
-    queryFn: () => accountService.listAccounts(),
+    queryFn: async () => mockAccounts,
     enabled: visible,
   })
-
-  const handleDateChange = (_: any, selectedDate?: Date) => {
-    setShowDatePicker(false)
-    if (selectedDate) setPaymentDate(selectedDate)
-  }
 
   const handlePayment = async () => {
     if (!invoice || !selectedAccountId) {
@@ -63,7 +66,7 @@ export function InvoicePaymentModal({
       })
       onSuccess(result)
       onClose()
-    } catch (error) {
+    } catch {
       onError('Erro ao registrar pagamento')
     } finally {
       setLoading(false)
@@ -153,14 +156,11 @@ export function InvoicePaymentModal({
           <View className="mb-6">
             <Text className="text-white font-semibold mb-2">Data do pagamento</Text>
             <TouchableOpacity
-              onPress={() => setShowDatePicker(true)}
+              onPress={() => setShowDatePicker(!showDatePicker)}
               className="bg-slate-900 p-3 rounded-lg border border-slate-700"
             >
               <Text className="text-white">{paymentDate.toLocaleDateString('pt-BR')}</Text>
             </TouchableOpacity>
-            {showDatePicker && (
-              <DateTimePicker value={paymentDate} mode="date" display="spinner" onChange={handleDateChange} />
-            )}
           </View>
 
           <View className="flex-row gap-3">

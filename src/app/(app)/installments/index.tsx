@@ -15,7 +15,6 @@ import { router } from 'expo-router'
 
 import { InstallmentRow } from '@/components/installments/InstallmentRow'
 import { MonthlyForecast } from '@/components/installments/MonthlyForecast'
-import { useInstallmentsList } from '@/hooks/useInstallments'
 import { darkTheme } from '@/theme/colors'
 import type { InstallmentSeriesResponse } from '@/types/installment'
 
@@ -160,18 +159,11 @@ const MOCK_DATA: InstallmentSeriesResponse[] = [
 export default function InstallmentsScreen() {
   const insets = useSafeAreaInsets()
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
-  const [useMockData] = useState(true)
 
   let series = MOCK_DATA
-  let isLoading = false
-  let error = null
+  const isLoading = false
 
-  if (!useMockData) {
-    const result = useInstallmentsList(statusFilter || undefined)
-    series = result.data || []
-    isLoading = result.isLoading
-    error = result.error
-  } else if (statusFilter) {
+  if (statusFilter) {
     series = MOCK_DATA.filter((item) => item.status === statusFilter)
   }
 
@@ -206,11 +198,6 @@ export default function InstallmentsScreen() {
       {isLoading ? (
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={darkTheme.primary} />
-        </View>
-      ) : error ? (
-        <View style={styles.centerContent}>
-          <Feather name="alert-circle" size={48} color={darkTheme.textMuted} />
-          <Text style={styles.errorText}>Erro ao carregar parcelamentos</Text>
         </View>
       ) : !series || series.length === 0 ? (
         <View style={styles.centerContent}>
