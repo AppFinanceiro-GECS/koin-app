@@ -118,7 +118,7 @@ export default function ProfileScreen() {
             icon="layers"
             title="Parcelamentos"
             subtitle="4 compras parceladas"
-            onPress={() => Alert.alert('Parcelamentos', 'Funcionalidade em desenvolvimento.')}
+            onPress={() => router.push('/installments')}
           />
           <View style={styles.divider} />
           <MenuItem
