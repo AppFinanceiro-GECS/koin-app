@@ -220,12 +220,7 @@ export default function AccountsScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Enviar PDF da fatura"
-                onPress={() =>
-                  Alert.alert(
-                    'Enviar fatura Inter',
-                    'Selecione o arquivo PDF da fatura do cartão Inter para importação automática.'
-                  )
-                }
+                onPress={() => router.push('/invoice/import' as any)}
                 style={({ pressed }) => [styles.actionButton, pressed && styles.buttonPressed]}
               >
                 <Text style={styles.actionButtonText}>Enviar PDF da fatura</Text>

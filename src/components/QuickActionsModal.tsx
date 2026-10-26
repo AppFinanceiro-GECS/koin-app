@@ -1,7 +1,6 @@
 import Feather from '@expo/vector-icons/Feather'
 import { router } from 'expo-router'
 import {
-  Alert,
   Modal,
   Pressable,
   StyleSheet,
@@ -27,10 +26,7 @@ export function QuickActionsModal({ visible, onClose }: QuickActionsModalProps) 
 
   const handleImportDocument = () => {
     onClose()
-    Alert.alert(
-      'Importar documento',
-      'Envie o PDF ou foto da fatura ou cupom fiscal para leitura automática.'
-    )
+    router.push('/invoice/import' as any)
   }
 
   return (
