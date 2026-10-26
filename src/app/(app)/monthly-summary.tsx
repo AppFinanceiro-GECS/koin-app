@@ -1,7 +1,6 @@
 import Feather from '@expo/vector-icons/Feather'
 import { useQuery } from '@tanstack/react-query'
 import { LinearGradient } from 'expo-linear-gradient'
-import { router } from 'expo-router'
 import { useMemo, useState } from 'react'
 import {
   ActivityIndicator,
@@ -15,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { ScopeToggle, type Scope } from '@/components/ScopeToggle'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { getApiErrorMessage } from '@/lib/errors'
 import { formatCurrency } from '@/lib/format'
 import { invoicesApi } from '@/services/documents.api'
@@ -110,8 +110,6 @@ export default function MonthlySummaryScreen() {
     })
   }
 
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'))
-
   const refreshing = summaryQuery.isRefetching || invoicesQuery.isRefetching
   const onRefresh = () => {
     summaryQuery.refetch()
@@ -120,21 +118,7 @@ export default function MonthlySummaryScreen() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Voltar"
-          hitSlop={8}
-          onPress={goBack}
-          style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
-        >
-          <Feather name="chevron-left" size={26} color={darkTheme.text} />
-        </Pressable>
-        <Text accessibilityRole="header" style={styles.headerTitle}>
-          Resumo do mês
-        </Text>
-        <View style={styles.headerButton} />
-      </View>
+      <ScreenHeader title="Resumo do mês" />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -283,24 +267,6 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.75,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    height: 52,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: darkTheme.text,
   },
   scrollContent: {
     paddingHorizontal: 16,

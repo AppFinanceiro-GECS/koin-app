@@ -111,7 +111,7 @@ export default function ProfileScreen() {
             icon="bar-chart-2"
             title="Resumo mensal"
             subtitle="Despesas por categoria"
-            onPress={() => router.push('/transactions')}
+            onPress={() => router.push('/monthly-summary')}
           />
           <View style={styles.divider} />
           <MenuItem
@@ -125,7 +125,7 @@ export default function ProfileScreen() {
             icon="users"
             title="Família"
             subtitle="Lançamentos compartilhados"
-            onPress={() => Alert.alert('Família', 'Gerenciamento de membros da família.')}
+            onPress={() => router.push('/family')}
           />
         </View>
 

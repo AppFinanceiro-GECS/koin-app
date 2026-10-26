@@ -27,3 +27,6 @@ export function parseAmount(input: string): number {
   const normalized = cleaned.includes(',') ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned
   return /^\d+(\.\d{1,2})?$/.test(normalized) ? Number(normalized) : NaN
 }
+
+/** Nome do mês em minúsculas, para frases ("compartilhado em outubro"). month: 1-12 */
+export const monthName = (month: number) => MONTHS[month - 1].toLowerCase()

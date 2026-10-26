@@ -166,3 +166,36 @@ export interface InvoiceOverview {
   total_cards: number
   pending_count: number
 }
+
+export interface HouseholdMember {
+  id: number
+  license_id: number
+  user_id: number
+  user_name: string | null
+  user_email: string | null
+  role: 'owner' | 'member' | string
+  nickname: string | null
+  joined_at: string
+  invited_by_id: number | null
+  can_create_transactions: boolean
+  can_edit_shared: boolean
+  can_invite_members: boolean
+  can_see_all: boolean
+}
+
+export interface FamilyContext {
+  license_id: number
+  license_type: string
+  is_owner: boolean
+  can_invite: boolean
+  member_count: number
+  max_members: number
+  members: HouseholdMember[]
+}
+
+export interface FamilyInviteResponse {
+  invitation_id: number
+  email: string
+  status: string
+  expires_at: string
+}
