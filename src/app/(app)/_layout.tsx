@@ -27,6 +27,7 @@ export default function AppLayout() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="monthly-summary" options={{ headerShown: false }} />
       <Stack.Screen name="transaction/new" options={{ title: 'Nova transação', presentation: 'modal' }} />
       <Stack.Screen name="transaction/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="invoice/import" options={{ headerShown: false, presentation: 'modal' }} />

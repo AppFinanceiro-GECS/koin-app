@@ -1,4 +1,5 @@
 import api from './api'
+import type { InvoiceOverview } from '../types/api'
 
 /** Arquivo local no formato que o FormData do React Native aceita (ex.: resultado do expo-document-picker). */
 export interface UploadFile {
@@ -51,7 +52,7 @@ export const invoicesApi = {
     offset?: number
   }) => api.get('/invoices', { params }),
   overview: (year: number, month: number) =>
-    api.get('/invoices/overview', { params: { year, month } }),
+    api.get<InvoiceOverview>('/invoices/overview', { params: { year, month } }),
   get: (id: number) => api.get(`/invoices/${id}`),
   create: (data: unknown) => api.post('/invoices', data),
   createFromDocument: (data: unknown) => api.post('/invoices/from-document', data),

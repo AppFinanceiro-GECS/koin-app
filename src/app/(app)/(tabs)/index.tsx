@@ -14,6 +14,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { ScopeToggle, type Scope } from '@/components/ScopeToggle'
 import { formatCurrency } from '@/lib/format'
 import { accountsApi } from '@/services/accounts.api'
 import { analyticsApi } from '@/services/analytics.api'
@@ -41,7 +42,7 @@ export default function DashboardScreen() {
   const currentYear = now.getFullYear()
   const monthName = MONTH_NAMES[now.getMonth()]
 
-  const [filterMode, setFilterMode] = useState<'me' | 'family'>('me')
+  const [filterMode, setFilterMode] = useState<Scope>('me')
 
   const summaryQuery = useQuery({
     queryKey: ['analytics', 'summary', currentYear, currentMonth],
@@ -128,40 +129,7 @@ export default function DashboardScreen() {
           />
         }
       >
-        {/* Tabs / Filter Chips */}
-        <View style={styles.chipRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Filtrar por Só eu"
-            onPress={() => setFilterMode('me')}
-            style={[styles.chip, filterMode === 'me' ? styles.chipActive : styles.chipInactive]}
-          >
-            <Text
-              style={[
-                styles.chipLabel,
-                filterMode === 'me' ? styles.chipLabelActive : styles.chipLabelInactive,
-              ]}
-            >
-              Só eu
-            </Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Filtrar por Família"
-            onPress={() => setFilterMode('family')}
-            style={[styles.chip, filterMode === 'family' ? styles.chipActive : styles.chipInactive]}
-          >
-            <Text
-              style={[
-                styles.chipLabel,
-                filterMode === 'family' ? styles.chipLabelActive : styles.chipLabelInactive,
-              ]}
-            >
-              Família
-            </Text>
-          </Pressable>
-        </View>
+        <ScopeToggle value={filterMode} onChange={setFilterMode} />
 
         {/* Alertas Section */}
         <View style={styles.sectionHeaderRow}>
@@ -216,29 +184,36 @@ export default function DashboardScreen() {
         </View>
 
         {/* Cartão-resumo */}
-        <LinearGradient
-          colors={['#0f0b1e', '#1f0c3b', '#0a0414']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.summaryCard}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Ver resumo do mês"
+          onPress={() => router.push('/monthly-summary')}
+          style={({ pressed }) => pressed && styles.buttonPressed}
         >
-          <Text style={styles.summaryMonth}>Despesas de {monthName}</Text>
-          <Text style={styles.summaryTotal}>{formatCurrency(totalExpense)}</Text>
+          <LinearGradient
+            colors={['#0f0b1e', '#1f0c3b', '#0a0414']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.summaryCard}
+          >
+            <Text style={styles.summaryMonth}>Despesas de {monthName}</Text>
+            <Text style={styles.summaryTotal}>{formatCurrency(totalExpense)}</Text>
 
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryColumn}>
-              <Text style={styles.summaryColumnLabel}>Receitas</Text>
-              <Text style={styles.incomeValue}>{formatCurrency(totalIncome)}</Text>
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryColumn}>
+                <Text style={styles.summaryColumnLabel}>Receitas</Text>
+                <Text style={styles.incomeValue}>{formatCurrency(totalIncome)}</Text>
+              </View>
+
+              <View style={styles.summaryColumn}>
+                <Text style={styles.summaryColumnLabel}>Sobrou</Text>
+                <Text style={styles.balanceValue}>{formatCurrency(balance)}</Text>
+              </View>
             </View>
 
-            <View style={styles.summaryColumn}>
-              <Text style={styles.summaryColumnLabel}>Sobrou</Text>
-              <Text style={styles.balanceValue}>{formatCurrency(balance)}</Text>
-            </View>
-          </View>
-
-          <Text style={styles.summaryNote}>Pagamentos de fatura ficam fora deste total.</Text>
-        </LinearGradient>
+            <Text style={styles.summaryNote}>Pagamentos de fatura ficam fora deste total.</Text>
+          </LinearGradient>
+        </Pressable>
 
         {/* Faturas Card */}
         <View style={styles.invoicesCard}>
@@ -330,37 +305,6 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 28,
     gap: 16,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  chip: {
-    height: 32,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipActive: {
-    backgroundColor: 'rgba(124, 58, 237, 0.19)',
-    borderWidth: 1,
-    borderColor: darkTheme.primary,
-  },
-  chipInactive: {
-    backgroundColor: darkTheme.surface,
-    borderWidth: 1,
-    borderColor: darkTheme.border,
-  },
-  chipLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  chipLabelActive: {
-    color: darkTheme.accent,
-  },
-  chipLabelInactive: {
-    color: darkTheme.textSecondary,
   },
   sectionHeaderRow: {
     flexDirection: 'row',

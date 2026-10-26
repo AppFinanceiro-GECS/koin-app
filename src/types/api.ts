@@ -141,3 +141,28 @@ export interface AnalyticsSummary {
   previous_period_expense: number | null
   expense_variation: number | null
 }
+
+export interface InvoiceOverviewItem {
+  credit_card_id: number
+  credit_card_name: string
+  reference_month: number
+  reference_year: number
+  closing_date: string
+  due_date: string
+  state: 'not_created' | 'created_no_document' | 'created_with_document' | 'paid' | 'future'
+  is_pending: boolean
+  is_phantom: boolean
+  invoice_id: number | null
+  document_id: number | null
+  total_amount: number | null
+  paid_amount: number | null
+  status: string | null
+}
+
+export interface InvoiceOverview {
+  reference_month: number
+  reference_year: number
+  items: InvoiceOverviewItem[]
+  total_cards: number
+  pending_count: number
+}
