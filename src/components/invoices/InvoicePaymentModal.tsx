@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, StyleSheet } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
 import { invoiceService } from '@/services/invoiceService'
 import type { InvoiceResponse } from '@/types/invoice'
@@ -17,6 +17,150 @@ interface InvoicePaymentModalProps {
   onSuccess: (invoice: InvoiceResponse) => void
   onError: (error: string) => void
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  container: {
+    backgroundColor: '#020617',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 32,
+  },
+  title: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  amountBox: {
+    backgroundColor: '#0f172a',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 24,
+  },
+  amountLabel: {
+    color: '#94a3b8',
+    fontSize: 14,
+  },
+  amountValue: {
+    color: '#ffffff',
+    fontSize: 32,
+    fontWeight: '700',
+  },
+  paymentTypeSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    color: '#ffffff',
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  typeButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 2,
+    alignItems: 'center',
+  },
+  typeButtonActive: {
+    backgroundColor: '#9333ea',
+    borderColor: '#a855f7',
+  },
+  typeButtonInactive: {
+    backgroundColor: '#0f172a',
+    borderColor: '#475569',
+  },
+  typeButtonText: {
+    fontWeight: '600',
+  },
+  typeButtonTextActive: {
+    color: '#ffffff',
+  },
+  typeButtonTextInactive: {
+    color: '#94a3b8',
+  },
+  inputSection: {
+    marginBottom: 24,
+  },
+  input: {
+    backgroundColor: '#0f172a',
+    color: '#ffffff',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#475569',
+  },
+  accountsBox: {
+    backgroundColor: '#0f172a',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#475569',
+  },
+  accountItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#475569',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  accountItemActive: {
+    backgroundColor: '#5b21b6',
+  },
+  accountName: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  accountBalance: {
+    color: '#94a3b8',
+    fontSize: 14,
+  },
+  checkmark: {
+    color: '#a78bfa',
+  },
+  dateButton: {
+    backgroundColor: '#0f172a',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#475569',
+  },
+  dateText: {
+    color: '#ffffff',
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#1e293b',
+    alignItems: 'center',
+  },
+  confirmButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: '#9333ea',
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#ffffff',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+})
 
 export function InvoicePaymentModal({
   visible,
@@ -77,40 +221,46 @@ export function InvoicePaymentModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View className="flex-1 bg-black/50 justify-end">
-        <View className="bg-slate-950 rounded-t-3xl p-6 pb-8">
-          <Text className="text-white text-xl font-bold mb-4">Registrar Pagamento</Text>
+      <View style={styles.overlay}>
+        <View style={styles.container}>
+          <Text style={styles.title}>Registrar Pagamento</Text>
 
-          <View className="bg-slate-900 rounded-lg p-4 mb-6">
-            <Text className="text-slate-400 text-sm">Valor da fatura</Text>
-            <Text className="text-white text-2xl font-bold">R$ {invoice.remaining_amount.toFixed(2)}</Text>
+          <View style={styles.amountBox}>
+            <Text style={styles.amountLabel}>Valor da fatura</Text>
+            <Text style={styles.amountValue}>R$ {invoice.remaining_amount.toFixed(2)}</Text>
           </View>
 
-          <View className="mb-6">
-            <Text className="text-white font-semibold mb-3">Tipo de pagamento</Text>
-            <View className="flex-row gap-3">
+          <View style={styles.paymentTypeSection}>
+            <Text style={styles.sectionTitle}>Tipo de pagamento</Text>
+            <View style={styles.buttonRow}>
               <TouchableOpacity
                 onPress={() => setPaymentType('full')}
-                className={`flex-1 p-3 rounded-lg border-2 ${
-                  paymentType === 'full'
-                    ? 'bg-purple-600 border-purple-500'
-                    : 'bg-slate-900 border-slate-700'
-                }`}
+                style={[
+                  styles.typeButton,
+                  paymentType === 'full' ? styles.typeButtonActive : styles.typeButtonInactive,
+                ]}
               >
-                <Text className={`text-center font-semibold ${paymentType === 'full' ? 'text-white' : 'text-slate-400'}`}>
+                <Text
+                  style={[
+                    styles.typeButtonText,
+                    paymentType === 'full' ? styles.typeButtonTextActive : styles.typeButtonTextInactive,
+                  ]}
+                >
                   Total
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setPaymentType('partial')}
-                className={`flex-1 p-3 rounded-lg border-2 ${
-                  paymentType === 'partial'
-                    ? 'bg-purple-600 border-purple-500'
-                    : 'bg-slate-900 border-slate-700'
-                }`}
+                style={[
+                  styles.typeButton,
+                  paymentType === 'partial' ? styles.typeButtonActive : styles.typeButtonInactive,
+                ]}
               >
                 <Text
-                  className={`text-center font-semibold ${paymentType === 'partial' ? 'text-white' : 'text-slate-400'}`}
+                  style={[
+                    styles.typeButtonText,
+                    paymentType === 'partial' ? styles.typeButtonTextActive : styles.typeButtonTextInactive,
+                  ]}
                 >
                   Parcial
                 </Text>
@@ -119,10 +269,10 @@ export function InvoicePaymentModal({
           </View>
 
           {paymentType === 'partial' && (
-            <View className="mb-6">
-              <Text className="text-white font-semibold mb-2">Valor do pagamento</Text>
+            <View style={styles.inputSection}>
+              <Text style={styles.sectionTitle}>Valor do pagamento</Text>
               <TextInput
-                className="bg-slate-900 text-white p-3 rounded-lg border border-slate-700"
+                style={styles.input}
                 placeholder="0,00"
                 placeholderTextColor="#64748b"
                 keyboardType="decimal-pad"
@@ -132,54 +282,47 @@ export function InvoicePaymentModal({
             </View>
           )}
 
-          <View className="mb-6">
-            <Text className="text-white font-semibold mb-2">Conta de origem</Text>
-            <View className="bg-slate-900 rounded-lg border border-slate-700">
+          <View style={styles.inputSection}>
+            <Text style={styles.sectionTitle}>Conta de origem</Text>
+            <View style={styles.accountsBox}>
               {accounts.map((account) => (
                 <TouchableOpacity
                   key={account.id}
                   onPress={() => setSelectedAccountId(account.id)}
-                  className={`p-3 border-b border-slate-700 flex-row items-center justify-between ${
-                    selectedAccountId === account.id ? 'bg-purple-900' : ''
-                  }`}
+                  style={[
+                    styles.accountItem,
+                    selectedAccountId === account.id && styles.accountItemActive,
+                  ]}
                 >
                   <View>
-                    <Text className="text-white font-semibold">{account.name}</Text>
-                    <Text className="text-slate-400 text-sm">R$ {account.balance?.toFixed(2)}</Text>
+                    <Text style={styles.accountName}>{account.name}</Text>
+                    <Text style={styles.accountBalance}>R$ {account.balance?.toFixed(2)}</Text>
                   </View>
-                  {selectedAccountId === account.id && <Text className="text-purple-400">✓</Text>}
+                  {selectedAccountId === account.id && <Text style={styles.checkmark}>✓</Text>}
                 </TouchableOpacity>
               ))}
             </View>
           </View>
 
-          <View className="mb-6">
-            <Text className="text-white font-semibold mb-2">Data do pagamento</Text>
+          <View style={styles.inputSection}>
+            <Text style={styles.sectionTitle}>Data do pagamento</Text>
             <TouchableOpacity
               onPress={() => setShowDatePicker(!showDatePicker)}
-              className="bg-slate-900 p-3 rounded-lg border border-slate-700"
+              style={styles.dateButton}
             >
-              <Text className="text-white">{paymentDate.toLocaleDateString('pt-BR')}</Text>
+              <Text style={styles.dateText}>{paymentDate.toLocaleDateString('pt-BR')}</Text>
             </TouchableOpacity>
           </View>
 
-          <View className="flex-row gap-3">
-            <TouchableOpacity
-              onPress={onClose}
-              className="flex-1 p-3 rounded-lg bg-slate-800"
-              disabled={loading}
-            >
-              <Text className="text-white text-center font-semibold">Cancelar</Text>
+          <View style={styles.actions}>
+            <TouchableOpacity onPress={onClose} style={styles.cancelButton} disabled={loading}>
+              <Text style={styles.buttonText}>Cancelar</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handlePayment}
-              className="flex-1 p-3 rounded-lg bg-purple-600"
-              disabled={loading}
-            >
+            <TouchableOpacity onPress={handlePayment} style={styles.confirmButton} disabled={loading}>
               {loading ? (
                 <ActivityIndicator color="white" />
               ) : (
-                <Text className="text-white text-center font-semibold">Confirmar</Text>
+                <Text style={styles.buttonText}>Confirmar</Text>
               )}
             </TouchableOpacity>
           </View>

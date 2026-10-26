@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 
 interface ComingSoonItem {
@@ -12,26 +12,78 @@ interface ComingSoonSectionProps {
   items: ComingSoonItem[]
 }
 
+const styles = StyleSheet.create({
+  container: {
+    marginTop: 24,
+  },
+  title: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 18,
+    marginBottom: 12,
+  },
+  itemsContainer: {
+    gap: 8,
+  },
+  item: {
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#475569',
+    borderRadius: 8,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  icon: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#1e293b',
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  info: {
+    flex: 1,
+  },
+  itemTitle: {
+    color: '#94a3b8',
+    fontWeight: '600',
+  },
+  itemDescription: {
+    color: '#64748b',
+    fontSize: 12,
+  },
+  badge: {
+    backgroundColor: '#475569',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  badgeText: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+})
+
 export function ComingSoonSection({ title, items }: ComingSoonSectionProps) {
   return (
-    <View className="mt-6">
-      <Text className="text-white font-bold text-lg mb-3">{title}</Text>
-      <View className="space-y-2">
+    <View style={styles.container}>
+      <Text style={styles.title}>{title}</Text>
+      <View style={styles.itemsContainer}>
         {items.map((item, idx) => (
-          <TouchableOpacity
-            key={idx}
-            disabled
-            className="bg-slate-900/50 border border-dashed border-slate-700 rounded-lg p-4 flex-row items-center gap-3"
-          >
-            <View className="w-10 h-10 bg-slate-800 rounded-full items-center justify-center">
+          <TouchableOpacity key={idx} disabled style={styles.item}>
+            <View style={styles.icon}>
               <Ionicons name={item.icon as any} size={20} color="#64748b" />
             </View>
-            <View className="flex-1">
-              <Text className="text-slate-400 font-semibold">{item.title}</Text>
-              <Text className="text-slate-500 text-xs">{item.description}</Text>
+            <View style={styles.info}>
+              <Text style={styles.itemTitle}>{item.title}</Text>
+              <Text style={styles.itemDescription}>{item.description}</Text>
             </View>
-            <View className="bg-slate-700 px-2 py-1 rounded">
-              <Text className="text-slate-300 text-xs font-semibold">Em breve</Text>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Em breve</Text>
             </View>
           </TouchableOpacity>
         ))}

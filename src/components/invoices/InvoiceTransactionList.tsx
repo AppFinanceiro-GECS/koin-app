@@ -1,4 +1,4 @@
-import { View, Text, FlatList } from 'react-native'
+import { View, Text, FlatList, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { InvoiceTransactionResponse } from '@/types/invoice'
 
@@ -36,12 +36,83 @@ const getCategoryIcon = (categoryName?: string | null) => {
   return 'shopping-bag'
 }
 
+const styles = StyleSheet.create({
+  emptyContainer: {
+    paddingVertical: 32,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#94a3b8',
+    marginTop: 8,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#1e293b',
+  },
+  row: {
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  leftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 12,
+  },
+  iconBox: {
+    width: 40,
+    height: 40,
+    backgroundColor: '#1e293b',
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  infoSection: {
+    flex: 1,
+  },
+  description: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  merchantText: {
+    color: '#94a3b8',
+    fontSize: 12,
+  },
+  categoryText: {
+    color: '#64748b',
+    fontSize: 12,
+  },
+  rightSection: {
+    alignItems: 'flex-end',
+  },
+  amount: {
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  amountGreen: {
+    fontWeight: '700',
+    color: '#4ade80',
+  },
+  dateText: {
+    color: '#94a3b8',
+    fontSize: 12,
+  },
+})
+
 export function InvoiceTransactionList({ transactions }: InvoiceTransactionListProps) {
   if (transactions.length === 0) {
     return (
-      <View className="py-8 items-center">
+      <View style={styles.emptyContainer}>
         <Ionicons name="receipt-outline" size={40} color="#64748b" />
-        <Text className="text-slate-400 mt-2">Nenhuma transação</Text>
+        <Text style={styles.emptyText}>Nenhuma transação</Text>
       </View>
     )
   }
@@ -51,30 +122,30 @@ export function InvoiceTransactionList({ transactions }: InvoiceTransactionListP
       data={transactions}
       keyExtractor={(item) => item.id.toString()}
       scrollEnabled={false}
-      ItemSeparatorComponent={() => <View className="h-px bg-slate-800" />}
+      ItemSeparatorComponent={() => <View style={styles.separator} />}
       renderItem={({ item }) => {
         const icon = getCategoryIcon(item.category_name)
         const isInstallment = item.installment_number && item.installment_total
-        const amountColor = item.amount < 0 ? 'text-green-400' : 'text-white'
+        const amountStyle = item.amount < 0 ? styles.amountGreen : styles.amount
 
         return (
-          <View className="py-3 flex-row items-center justify-between">
-            <View className="flex-row items-center flex-1 mr-3">
-              <View className="w-10 h-10 bg-slate-800 rounded-full items-center justify-center mr-3">
+          <View style={styles.row}>
+            <View style={styles.leftSection}>
+              <View style={styles.iconBox}>
                 <Ionicons name={icon as any} size={20} color="#a855f7" />
               </View>
 
-              <View className="flex-1">
-                <Text className="text-white font-semibold">{item.description}</Text>
-                <View className="flex-row items-center gap-2">
+              <View style={styles.infoSection}>
+                <Text style={styles.description}>{item.description}</Text>
+                <View style={styles.infoRow}>
                   {item.merchant_name && (
-                    <Text className="text-slate-400 text-xs">{item.merchant_name}</Text>
+                    <Text style={styles.merchantText}>{item.merchant_name}</Text>
                   )}
                   {item.category_name && (
-                    <Text className="text-slate-500 text-xs">• {item.category_name}</Text>
+                    <Text style={styles.categoryText}>• {item.category_name}</Text>
                   )}
                   {isInstallment && (
-                    <Text className="text-slate-500 text-xs">
+                    <Text style={styles.categoryText}>
                       • {item.installment_number}/{item.installment_total}
                     </Text>
                   )}
@@ -82,11 +153,11 @@ export function InvoiceTransactionList({ transactions }: InvoiceTransactionListP
               </View>
             </View>
 
-            <View className="items-end">
-              <Text className={`font-bold ${amountColor}`}>
+            <View style={styles.rightSection}>
+              <Text style={amountStyle}>
                 {item.amount < 0 ? '-' : ''}R$ {Math.abs(item.amount).toFixed(2)}
               </Text>
-              <Text className="text-slate-400 text-xs">
+              <Text style={styles.dateText}>
                 {new Date(item.date).toLocaleDateString('pt-BR', {
                   day: '2-digit',
                   month: '2-digit',

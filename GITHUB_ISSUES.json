@@ -1,0 +1,87 @@
+[
+  {
+    "title": "feat: Fluxo de Pagamento de Faturas",
+    "body": "## User Story\n\nComo usuário, quero poder registrar o pagamento de minhas faturas de forma fácil, com suporte a pagamentos totais ou parciais.\n\n## Critérios de Aceitação\n- [ ] Usuário pode selecionar tipo de pagamento (total ou parcial)\n- [ ] Para pagamento parcial, usuário insere o valor\n- [ ] Usuário seleciona conta de origem do pagamento\n- [ ] Usuário define data do pagamento\n- [ ] Confirmação visual do pagamento registrado\n- [ ] Feedback de erro em caso de falha\n\n## Detalhes Técnicos\n- **Commit**: a3a4e3a\n- **Arquivos**: src/components/invoices/InvoicePaymentModal.tsx, src/services/invoiceService.ts\n- **Pendência**: Backend precisa validar requisição de pagamento\n- **Branch**: feat/flows-5-6-installments-invoice",
+    "labels": ["feature", "invoices", "payment"]
+  },
+  {
+    "title": "feat: Avisos de Duplicação em Faturas",
+    "body": "## User Story\n\nComo usuário, quero ser alertado sobre possíveis duplicatas de parcelas em minhas faturas para evitar pagamentos duplicados.\n\n## Critérios de Aceitação\n- [ ] Banner de alerta visual quando duplicatas são detectadas\n- [ ] Exibição do número de parcelas duplicadas\n- [ ] Exibição do valor estimado de excesso\n- [ ] Listagem das séries afetadas com score de similaridade\n\n## Detalhes Técnicos\n- **Commit**: 9468791\n- **Arquivos**: src/components/invoices/InvoiceDuplicateWarning.tsx, src/types/invoice.ts\n- **Pendência**: Backend precisa de endpoint `/invoices/{id}/duplicate-warnings`\n- **Branch**: feat/flows-5-6-installments-invoice",
+    "labels": ["feature", "invoices", "duplicate-detection"]
+  },
+  {
+    "title": "feat: Listagem Melhorada de Transações em Faturas",
+    "body": "## User Story\n\nComo usuário, quero visualizar as transações associadas a cada fatura de forma clara e organizada.\n\n## Critérios de Aceitação\n- [ ] Lista de transações com ícones de categoria\n- [ ] Exibição de nome do comerciante\n- [ ] Exibição da categoria da transação\n- [ ] Exibição de número de parcela (quando aplicável)\n- [ ] Exibição da data e valor da transação\n\n## Detalhes Técnicos\n- **Commit**: 9468791\n- **Arquivos**: src/components/invoices/InvoiceTransactionList.tsx\n- **Pendência**: Dados reais do backend\n- **Branch**: feat/flows-5-6-installments-invoice",
+    "labels": ["feature", "invoices", "transactions"]
+  },
+  {
+    "title": "feat: Seções Em Breve em Faturas",
+    "body": "## User Story\n\nComo usuário, quero visualizar placeholders para features futuras na tela de faturas.\n\n## Critérios de Aceitação\n- [ ] Seção para anexação de documentos (desativada)\n- [ ] Seção para comentários (desativada)\n- [ ] Seção para exportação em PDF (desativada)\n- [ ] Badge \"Em breve\" em cada feature\n\n## Detalhes Técnicos\n- **Commit**: 9468791\n- **Arquivos**: src/components/invoices/ComingSoonSection.tsx\n- **Tipo**: Componente reutilizável\n- **Branch**: feat/flows-5-6-installments-invoice",
+    "labels": ["feature", "invoices", "ux"]
+  },
+  {
+    "title": "feat: Fluxo de Antecipação de Parcelas",
+    "body": "## User Story\n\nComo usuário, quero poder antecipar parcelas de meus parcelamentos.\n\n## Critérios de Aceitação\n- [ ] Usuário visualiza tela de antecipação\n- [ ] Usuário seleciona parcelas para antecipar\n- [ ] Cálculo de juros é exibido\n- [ ] Confirmação de antecipação\n- [ ] Feedback de sucesso/erro\n\n## Detalhes Técnicos\n- **Commit**: a3a4e3a\n- **Arquivos**: src/app/(app)/installments/[id]/advance/*\n- **Pendência**: Backend de cálculo de juros\n- **Branch**: feat/flows-5-6-installments-invoice",
+    "labels": ["feature", "installments", "advance"]
+  },
+  {
+    "title": "feat: Edição de Parcelamentos",
+    "body": "## User Story\n\nComo usuário, quero poder editar informações dos meus parcelamentos.\n\n## Critérios de Aceitação\n- [ ] Usuário pode acessar tela de edição\n- [ ] Usuário pode modificar dados relevantes\n- [ ] Preview das mudanças antes de confirmar\n- [ ] Confirmação da edição\n- [ ] Feedback de sucesso/erro\n\n## Detalhes Técnicos\n- **Commit**: a3a4e3a\n- **Arquivos**: src/app/(app)/installments/[id]/edit/*\n- **Pendência**: Backend de validação e atualização\n- **Branch**: feat/flows-5-6-installments-invoice",
+    "labels": ["feature", "installments", "edit"]
+  },
+  {
+    "title": "feat: Listagem e Filtros de Parcelamentos",
+    "body": "## User Story\n\nComo usuário, quero visualizar meus parcelamentos com filtros por status.\n\n## Critérios de Aceitação\n- [ ] Listagem de todos os parcelamentos\n- [ ] Filtro \"Em andamento\"\n- [ ] Filtro \"Quitados\"\n- [ ] Cards com resumo (valor total, pago, restante)\n- [ ] Barra de progresso visual\n\n## Detalhes Técnicos\n- **Commit**: a3a4e3a\n- **Arquivos**: src/app/(app)/installments/index.tsx, src/components/installments/*\n- **Dados**: Usando mock data (MOCK_DATA)\n- **Branch**: feat/flows-5-6-installments-invoice",
+    "labels": ["feature", "installments", "list"]
+  },
+  {
+    "title": "feat: Integração da API de Notificações",
+    "body": "## User Story\n\nComo usuário, quero receber notificações sobre eventos importantes em minha conta.\n\n## Critérios de Aceitação\n- [ ] Sistema de notificações integrado\n- [ ] Notificações de transações\n- [ ] Dados reais em vez de mockados\n- [ ] Histórico de transações atualizado\n\n## Detalhes Técnicos\n- **Commit**: 0aea327\n- **Arquivos**: src/app/(app)/(tabs)/transactions.tsx\n- **Status**: ✅ Integrado com dados reais\n- **Pendência**: Configuração de permissões de notificação\n- **Branch**: main",
+    "labels": ["feature", "notifications", "api"]
+  },
+  {
+    "title": "feat: Resumo Mensal de Transações",
+    "body": "## User Story\n\nComo usuário, quero visualizar um resumo das minhas transações por mês.\n\n## Critérios de Aceitação\n- [ ] Resumo visual de gastos por mês\n- [ ] Gráficos ou cards de resumo\n- [ ] Filtro por período\n- [ ] Categorização de gastos\n\n## Detalhes Técnicos\n- **Commit**: c259b5c\n- **Arquivos**: src/app/(app)/monthly-summary.tsx\n- **Pendência**: Integração de gráficos\n- **Branch**: main",
+    "labels": ["feature", "summary", "analytics"]
+  },
+  {
+    "title": "feat: Compartilhamento Familiar",
+    "body": "## User Story\n\nComo usuário, quero compartilhar minha conta com membros da família.\n\n## Critérios de Aceitação\n- [ ] Tela de gerenciamento de família\n- [ ] Fluxo de convite para membros\n- [ ] Visualização de membros compartilhados\n- [ ] Permissões de acesso configuráveis\n\n## Detalhes Técnicos\n- **Commit**: 29ce375\n- **Arquivos**: src/app/(app)/family/index.tsx, src/app/(app)/family/invite.tsx\n- **Pendência**: Backend de convites e permissões\n- **Branch**: main",
+    "labels": ["feature", "family", "sharing"]
+  },
+  {
+    "title": "feat: Privacidade e Exclusão de Conta (LGPD)",
+    "body": "## User Story\n\nComo usuário, quero ter controle total sobre meus dados e poder deletar minha conta.\n\n## Critérios de Aceitação\n- [ ] Tela de privacidade e política de dados\n- [ ] Opção de exportar dados pessoais\n- [ ] Opção de deletar conta\n- [ ] Confirmação de exclusão\n- [ ] Tela de confirmação pós-exclusão\n\n## Detalhes Técnicos\n- **Commit**: 13852cb\n- **Arquivos**: src/app/(app)/privacy.tsx, src/app/(app)/delete-account.tsx, src/app/account-deleted.tsx\n- **Status**: ✅ Telas implementadas\n- **Bloqueante**: ⚠️ Backend de exportação/exclusão (LGPD)\n- **Branch**: main\n\n## Notas de Conformidade\n- Requisito N09 do escopo de lançamento\n- Necessário para aprovação no Google Play Store\n- Endpoints precisam garantir conformidade LGPD",
+    "labels": ["feature", "privacy", "lgpd", "blocking"]
+  },
+  {
+    "title": "feat: Detecção de Documentos Duplicados",
+    "body": "## User Story\n\nComo usuário, quero ser informado quando tento importar um documento que já foi processado.\n\n## Critérios de Aceitação\n- [ ] Detecção automática de duplicatas\n- [ ] Tela de bloqueio com explicação\n- [ ] Hash do arquivo para comparação\n- [ ] Sugestão de próximos passos\n\n## Detalhes Técnicos\n- **Commit**: 7753133\n- **Arquivos**: src/app/(app)/invoice/duplicate.tsx\n- **Pendência**: Hash de arquivo no backend (409 Conflict)\n- **Branch**: main\n\n## Requisito de Conformidade\n- Requisito N11 do escopo de lançamento\n- Previne duplicação acidental de documentos",
+    "labels": ["feature", "import", "duplicate-detection"]
+  },
+  {
+    "title": "feat: Importação de Faturas",
+    "body": "## User Story\n\nComo usuário, quero poder fazer upload de minhas faturas para processamento.\n\n## Critérios de Aceitação\n- [ ] Interface de upload de arquivos\n- [ ] Preview do arquivo antes de processar\n- [ ] Feedback de processamento\n- [ ] Histórico de uploads\n\n## Detalhes Técnicos\n- **Commit**: 13ce053\n- **Arquivos**: src/app/(app)/invoice/import.tsx\n- **Pendência**: Backend de processamento (OCR/IA)\n- **Branch**: main\n\n## Requisito de Conformidade\n- Requisito N02 do escopo de lançamento\n- Necessário para medição de custos de IA",
+    "labels": ["feature", "invoice", "import"]
+  },
+  {
+    "title": "feat: Melhorias em Transações",
+    "body": "## User Story\n\nComo usuário, quero criar transações com mais categorias e métodos de pagamento disponíveis.\n\n## Critérios de Aceitação\n- [ ] Novas categorias de transação\n- [ ] Novos métodos de pagamento\n- [ ] Interface intuitiva para seleção\n- [ ] Validação de dados\n\n## Detalhes Técnicos\n- **Commit**: 83ae3d5\n- **Arquivos**: src/app/(app)/(tabs)/transactions.tsx, src/app/(app)/transaction/[id].tsx\n- **Dados**: Usando mock data\n- **Branch**: main",
+    "labels": ["feature", "transactions", "enhancement"]
+  },
+  {
+    "title": "feat: Modais de Conta e Cartão de Crédito",
+    "body": "## User Story\n\nComo usuário, quero gerenciar minhas contas e cartões de crédito através de modals.\n\n## Critérios de Aceitação\n- [ ] Modal de criação/edição de conta\n- [ ] Modal de criação/edição de cartão\n- [ ] Validação de formulários\n- [ ] Feedback de sucesso/erro\n\n## Detalhes Técnicos\n- **Commit**: f675de5\n- **Arquivos**: src/app/(app)/account/modal.tsx, src/app/(app)/credit-card/modal.tsx\n- **Pendência**: Backend de CRUD\n- **Branch**: main",
+    "labels": ["feature", "accounts", "modals"]
+  },
+  {
+    "title": "feat: Recuperação de Senha",
+    "body": "## User Story\n\nComo usuário, quero poder recuperar minha senha caso a esqueça.\n\n## Critérios de Aceitação\n- [ ] Tela de recuperação de senha\n- [ ] Validação de email\n- [ ] Envio de link de reset\n- [ ] Nova tela de definição de senha\n\n## Detalhes Técnicos\n- **Commit**: 13a553c\n- **Arquivos**: src/app/(auth)/forgot-password.tsx\n- **Pendência**: Backend de envio de email\n- **Branch**: main",
+    "labels": ["feature", "auth", "password-reset"]
+  },
+  {
+    "title": "fix: Resolução de Erros de Linting e Compilação",
+    "body": "## Descrição\n\nCorrigidos erros de linting e compilação que impediam a pipeline de CI passar.\n\n## Alterações\n- [x] Remoção de chamadas condicionais de React Hooks (installments/index.tsx)\n- [x] Remoção de módulos não resolvidos\n- [x] Remoção de variáveis não utilizadas\n- [x] Remoção de imports não utilizados\n\n## Detalhes Técnicos\n- **Commit**: 63b8f68\n- **Impacto**: Pipeline CI agora passa sem erros\n- **Arquivos afetados**: 6 arquivos modificados\n- **Branch**: feat/flows-5-6-installments-invoice",
+    "labels": ["fix", "ci", "linting"]
+  }
+]

@@ -1,4 +1,4 @@
-import { View, Text } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import type { InvoiceDuplicateWarning } from '@/types/invoice'
 
@@ -6,26 +6,64 @@ interface InvoiceDuplicateWarningProps {
   warning: InvoiceDuplicateWarning
 }
 
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: 'rgba(127, 29, 29, 0.3)',
+    borderWidth: 1,
+    borderColor: '#dc2626',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 16,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  content: {
+    flex: 1,
+  },
+  title: {
+    color: '#f87171',
+    fontWeight: '700',
+  },
+  text: {
+    color: '#fca5a5',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  pairsBox: {
+    marginTop: 12,
+    backgroundColor: 'rgba(127, 29, 29, 0.5)',
+    borderRadius: 4,
+    padding: 8,
+  },
+  pairText: {
+    color: '#fca5a5',
+    fontSize: 12,
+  },
+})
+
 export function InvoiceDuplicateWarningBanner({ warning }: InvoiceDuplicateWarningProps) {
   if (!warning.has_duplicates) return null
 
   return (
-    <View className="bg-red-900/30 border border-red-600 rounded-lg p-4 mb-4">
-      <View className="flex-row items-start gap-3">
+    <View style={styles.container}>
+      <View style={styles.row}>
         <Ionicons name="alert-circle" size={24} color="#f87171" />
-        <View className="flex-1">
-          <Text className="text-red-400 font-bold">Possível duplicação detectada</Text>
-          <Text className="text-red-300 text-sm mt-1">
+        <View style={styles.content}>
+          <Text style={styles.title}>Possível duplicação detectada</Text>
+          <Text style={styles.text}>
             {warning.duplicate_count} parcela(s) duplicada(s) encontrada(s)
           </Text>
-          <Text className="text-red-300 text-sm">
+          <Text style={styles.text}>
             Excesso estimado: R$ {warning.estimated_excess.toFixed(2)}
           </Text>
 
           {warning.affected_series_pairs.length > 0 && (
-            <View className="mt-3 bg-red-900/50 rounded p-2">
+            <View style={styles.pairsBox}>
               {warning.affected_series_pairs.map((pair, idx) => (
-                <Text key={idx} className="text-red-300 text-xs">
+                <Text key={idx} style={styles.pairText}>
                   • {pair.series_a_name} ↔ {pair.series_b_name}
                 </Text>
               ))}
