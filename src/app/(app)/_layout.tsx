@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 
 import { authApi } from '@/services/auth.api'
 import { useAuthStore } from '@/stores/authStore'
-import { colors } from '@/theme/colors'
+import { darkTheme } from '@/theme/colors'
 
 export default function AppLayout() {
   const setUser = useAuthStore((s) => s.setUser)
@@ -20,10 +20,10 @@ export default function AppLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: colors.navy },
-        headerTintColor: colors.white,
+        headerStyle: { backgroundColor: darkTheme.surface },
+        headerTintColor: darkTheme.text,
         headerTitleStyle: { fontWeight: '600' },
-        contentStyle: { backgroundColor: colors.background },
+        contentStyle: { backgroundColor: darkTheme.background },
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
