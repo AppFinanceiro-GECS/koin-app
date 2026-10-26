@@ -48,4 +48,5 @@ yarn-error.*
 # IDE / agentes
 .idea/
 .vscode/
+koin-api
 .claude/
