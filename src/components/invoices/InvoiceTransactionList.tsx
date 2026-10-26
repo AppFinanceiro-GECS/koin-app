@@ -6,8 +6,8 @@ interface InvoiceTransactionListProps {
   transactions: InvoiceTransactionResponse[]
 }
 
-const getCategoryIcon = (categoryName?: string) => {
-  const categoryLower = categoryName?.toLowerCase() || ''
+const getCategoryIcon = (categoryName?: string | null) => {
+  const categoryLower = (categoryName ?? '')?.toLowerCase() || ''
 
   const iconMap: Record<string, string> = {
     alimentação: 'fast-food',

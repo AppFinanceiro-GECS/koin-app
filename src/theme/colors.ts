@@ -39,4 +39,7 @@ export const darkTheme = {
   success: '#34d399',
   successBackground: '#0a291f',
   successBorder: '#065f46',
+  warning: '#f59e0b',
+  warningBackground: '#2a1f0a',
+  warningBorder: '#92400e',
 } as const

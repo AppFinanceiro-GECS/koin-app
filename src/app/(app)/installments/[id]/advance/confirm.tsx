@@ -33,7 +33,7 @@ export default function AdvanceConfirmScreen() {
       try {
         await markInstallmentsMutation.mutateAsync({
           seriesId,
-          upToInstallment,
+          upTo: upToInstallment,
         })
       } catch (err) {
         console.error('Error marking installments paid:', err)

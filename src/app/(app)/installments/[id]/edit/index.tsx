@@ -63,12 +63,7 @@ export default function EditSeriesScreen() {
 
   const handleReview = () => {
     if (!hasChanges || !seriesId) return
-    router.push({
-      pathname: `/installments/${seriesId}/edit/confirm`,
-      params: {
-        edited: JSON.stringify(editableValues),
-      },
-    })
+    router.push(`/installments/${seriesId}/edit/confirm?edited=${encodeURIComponent(JSON.stringify(editableValues))}`)
   }
 
   return (

@@ -48,9 +48,9 @@ export default function ConfirmEditScreen() {
     setIsSubmitting(true)
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000))
-      router.push({
-        pathname: `/installments/${seriesId}/edit/success`,
-      })
+      if (seriesId) {
+        router.push(`/installments/${seriesId}/edit/success`)
+      }
     } finally {
       setIsSubmitting(false)
     }

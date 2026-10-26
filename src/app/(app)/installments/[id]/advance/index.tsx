@@ -72,12 +72,9 @@ export default function AdvanceInstallmentsScreen() {
 
   const handleReview = () => {
     if (selectedInstallments.length > 0 && seriesId) {
-      router.push({
-        pathname: `/installments/${seriesId}/advance/review`,
-        params: {
-          selected: selectedInstallments.join(','),
-        },
-      })
+      router.push(
+        `/installments/${seriesId}/advance/review?selected=${selectedInstallments.join(',')}`
+      )
     }
   }
 

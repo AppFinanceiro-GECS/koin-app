@@ -50,10 +50,9 @@ export default function AdvanceReviewScreen() {
   }
 
   const handleConfirm = () => {
-    router.push({
-      pathname: `/installments/${seriesId}/advance/confirm`,
-      params: { selected: selectedInstallments.join(',') },
-    })
+    if (seriesId) {
+      router.push(`/installments/${seriesId}/advance/confirm?selected=${selectedInstallments.join(',')}`)
+    }
   }
 
   return (

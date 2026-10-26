@@ -176,21 +176,17 @@ export default function EditSuccessScreen() {
         <View style={styles.actions}>
           <Pressable
             style={styles.viewButton}
-            onPress={() =>
-              router.push({
-                pathname: `/installments/${seriesId}`,
-              })
-            }
+            onPress={() => {
+              if (seriesId) {
+                router.push(`/installments/${seriesId}`)
+              }
+            }}
           >
             <Text style={styles.viewButtonText}>Ver parcelamento</Text>
           </Pressable>
           <Pressable
             style={styles.backListButton}
-            onPress={() =>
-              router.push({
-                pathname: '/installments',
-              })
-            }
+            onPress={() => router.push('/installments')}
           >
             <Text style={styles.backListButtonText}>Voltar a parcelamentos</Text>
           </Pressable>
