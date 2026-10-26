@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { formatCurrency } from '@/lib/format'
+import { creditCardsApi } from '@/services/accounts.api'
 import { transactionsApi } from '@/services/transactions.api'
 import { darkTheme } from '@/theme/colors'
 
@@ -137,6 +138,20 @@ export default function TransactionDetailScreen() {
     enabled: isNumeric,
   })
 
+  const { data: cardData } = useQuery({
+    queryKey: ['credit-card', apiData?.credit_card_id],
+    queryFn: async () => {
+      if (!apiData?.credit_card_id) return null
+      try {
+        const res = await creditCardsApi.get(apiData.credit_card_id)
+        return res.data
+      } catch {
+        return null
+      }
+    },
+    enabled: Boolean(apiData?.credit_card_id),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: async () => {
       if (isNumeric) {
@@ -157,6 +172,19 @@ export default function TransactionDetailScreen() {
   const transactionData = useMemo(() => {
     if (apiData) {
       const isIncome = apiData.type === 'income'
+      const txDate = apiData.date ? new Date(apiData.date) : new Date()
+      const day = String(txDate.getDate()).padStart(2, '0')
+      const month = String(txDate.getMonth() + 1).padStart(2, '0')
+
+      const closingDay = cardData?.closing_day ? String(cardData.closing_day).padStart(2, '0') : '24'
+      const dueDay = cardData?.due_day ? String(cardData.due_day).padStart(2, '0') : '04'
+
+      const timeline = [
+        { date: `${closingDay}/${month}`, label: 'Fatura anterior fecha' },
+        { date: `${day}/${month}`, label: 'Você faz a compra', active: true },
+        { date: `${dueDay}/${String((txDate.getMonth() + 2) % 12 || 12).padStart(2, '0')}`, label: 'Fatura vence' },
+      ]
+
       return {
         title: apiData.description || apiData.merchant_name || apiData.category_name || 'Transação',
         amount: apiData.amount,
@@ -166,9 +194,7 @@ export default function TransactionDetailScreen() {
         paymentMethod: apiData.credit_card_name ? `${apiData.credit_card_name}, à vista` : apiData.account_name || 'Conta',
         invoiceMonth: 'Fatura atual',
         invoiceExplanation: 'Transação registrada e vinculada à conta/fatura selecionada.',
-        timeline: [
-          { date: 'Transação', label: 'Registrada no app', active: true },
-        ],
+        timeline,
         splitWith: apiData.ownership_type === 'family' ? 'Família' : 'Individual',
         yourShare: formatCurrency(apiData.amount),
         icon: (apiData.type === 'income' ? 'wallet-outline' : 'cart-outline') as keyof typeof Ionicons.glyphMap,
@@ -191,7 +217,7 @@ export default function TransactionDetailScreen() {
       yourShare: mock.yourShare,
       icon: mock.icon,
     }
-  }, [apiData, id])
+  }, [apiData, cardData, id])
 
   const handleDelete = () => {
     Alert.alert(

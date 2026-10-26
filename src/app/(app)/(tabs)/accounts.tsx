@@ -144,88 +144,146 @@ export default function AccountsScreen() {
         {activeTab === 'cards' ? (
           /* ======================= ABA CARTÕES ======================= */
           <View style={styles.sectionGap}>
-            {/* Cartão Nubank final 4821 */}
-            <Pressable
-              onPress={() =>
-                router.push({
-                  pathname: '/credit-card/modal',
-                  params: {
-                    id: 'nubank',
-                    name: 'Nubank',
-                    digits: '4821',
-                    limit: '8000',
-                    closingDay: '24',
-                    dueDay: '04',
-                  },
-                })
-              }
-              style={({ pressed }) => [pressed && styles.buttonPressed]}
-            >
-              <LinearGradient
-                colors={['#0f0b1e', '#1f0c3b', '#0a0414']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.cardGradient}
-              >
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardTitle}>Nubank final 4821</Text>
-                  <Text style={styles.cardSubtitle}>Fecha dia 24, vence dia 04</Text>
-                </View>
+            {/* Lista de Cartões (Reais da API ou Fallback do Figma) */}
+            {cardsQuery.data && cardsQuery.data.length > 0 ? (
+              cardsQuery.data.map((card: any, idx: number) => {
+                const title = card.nickname || card.account_name || `Cartão final ${card.last_four_digits || ''}`
+                const subtitle = `Fecha dia ${card.closing_day || 24}, vence dia ${card.due_day || '04'}`
+                const limit = Number(card.credit_limit) || 8000
+                const balance = Math.abs(Number(card.account_balance) || 0)
+                const available = Math.max(limit - balance, 0)
+                const percentage = limit > 0 ? Math.min((balance / limit) * 100, 100) : 50
 
-                {/* Fatura de outubro */}
-                <View style={styles.invoiceRow}>
-                  <View style={styles.invoiceCol}>
-                    <Text style={styles.invoiceLabel}>Fatura de outubro</Text>
-                    <Text style={styles.statusBadgePurple}>Fechada • vence 04/10</Text>
+                return (
+                  <Pressable
+                    key={String(card.id)}
+                    onPress={() =>
+                      Alert.alert(title, `Limite: ${formatCurrency(limit)}\nUtilizado: ${formatCurrency(balance)}`, [
+                        { text: 'Editar', onPress: () => router.push(`/credit-card/modal?id=${card.id}` as any) },
+                        { text: 'Enviar fatura', onPress: () => router.push('/invoice/import' as any) },
+                        { text: 'Fechar', style: 'cancel' },
+                      ])
+                    }
+                    style={({ pressed }) => [pressed && styles.buttonPressed, { marginBottom: 14 }]}
+                  >
+                    <LinearGradient
+                      colors={idx === 0 ? ['#0f0b1e', '#1f0c3b', '#0a0414'] : ['#120e1e', '#120e1e']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={idx === 0 ? styles.cardGradient : styles.darkCard}
+                    >
+                      <View style={styles.cardHeader}>
+                        <Text style={styles.cardTitle}>{title}</Text>
+                        <Text style={styles.cardSubtitle}>{subtitle}</Text>
+                      </View>
+
+                      <View style={styles.invoiceRow}>
+                        <View style={styles.invoiceCol}>
+                          <Text style={styles.invoiceLabel}>Fatura atual</Text>
+                          <Text style={styles.statusBadgePurple}>Em aberto</Text>
+                        </View>
+                        <Text style={styles.invoiceValue}>{formatCurrency(balance)}</Text>
+                      </View>
+
+                      {/* Barra de Limite */}
+                      <View style={styles.progressSection}>
+                        <View style={styles.progressTrack}>
+                          <View style={[styles.progressFill, { width: `${percentage}%` }]} />
+                        </View>
+                        <Text style={styles.limitText}>
+                          Limite disponível: {formatCurrency(available)} de {formatCurrency(limit)}
+                        </Text>
+                      </View>
+                    </LinearGradient>
+                  </Pressable>
+                )
+              })
+            ) : (
+              <>
+                {/* Cartão Nubank final 4821 */}
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/credit-card/modal',
+                      params: {
+                        id: 'nubank',
+                        name: 'Nubank',
+                        digits: '4821',
+                        limit: '8000',
+                        closingDay: '24',
+                        dueDay: '04',
+                      },
+                    })
+                  }
+                  style={({ pressed }) => [pressed && styles.buttonPressed]}
+                >
+                  <LinearGradient
+                    colors={['#0f0b1e', '#1f0c3b', '#0a0414']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.cardGradient}
+                  >
+                    <View style={styles.cardHeader}>
+                      <Text style={styles.cardTitle}>Nubank final 4821</Text>
+                      <Text style={styles.cardSubtitle}>Fecha dia 24, vence dia 04</Text>
+                    </View>
+
+                    {/* Fatura de outubro */}
+                    <View style={styles.invoiceRow}>
+                      <View style={styles.invoiceCol}>
+                        <Text style={styles.invoiceLabel}>Fatura de outubro</Text>
+                        <Text style={styles.statusBadgePurple}>Fechada • vence 04/10</Text>
+                      </View>
+                      <Text style={styles.invoiceValue}>R$ 2.380,00</Text>
+                    </View>
+
+                    {/* Fatura de novembro */}
+                    <View style={styles.invoiceRow}>
+                      <View style={styles.invoiceCol}>
+                        <Text style={styles.invoiceLabel}>Fatura de novembro</Text>
+                        <Text style={styles.statusBadgeMuted}>Aberta • fecha 24/10</Text>
+                      </View>
+                      <Text style={styles.invoiceValue}>R$ 1.495,90</Text>
+                    </View>
+
+                    {/* Barra de Limite */}
+                    <View style={styles.progressSection}>
+                      <View style={styles.progressTrack}>
+                        <View style={[styles.progressFill, { width: '48.5%' }]} />
+                      </View>
+                      <Text style={styles.limitText}>
+                        Limite disponível: R$ 4.124,10 de R$ 8.000,00
+                      </Text>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+
+                {/* Cartão Inter final 1190 */}
+                <View style={styles.darkCard}>
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.cardTitle}>Inter final 1190</Text>
+                    <Text style={styles.cardSubtitle}>Fecha dia 28, vence dia 07</Text>
                   </View>
-                  <Text style={styles.invoiceValue}>R$ 2.380,00</Text>
-                </View>
 
-                {/* Fatura de novembro */}
-                <View style={styles.invoiceRow}>
-                  <View style={styles.invoiceCol}>
-                    <Text style={styles.invoiceLabel}>Fatura de novembro</Text>
-                    <Text style={styles.statusBadgeMuted}>Aberta • fecha 24/10</Text>
+                  <View style={styles.invoiceRow}>
+                    <View style={styles.invoiceCol}>
+                      <Text style={styles.invoiceLabel}>Fatura de outubro</Text>
+                      <Text style={styles.statusBadgeYellow}>Estimada • PDF pendente</Text>
+                    </View>
+                    <Text style={styles.invoiceValue}>R$ 1.150,40</Text>
                   </View>
-                  <Text style={styles.invoiceValue}>R$ 1.495,90</Text>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Enviar PDF da fatura"
+                    onPress={() => router.push('/invoice/import' as any)}
+                    style={({ pressed }) => [styles.actionButton, pressed && styles.buttonPressed]}
+                  >
+                    <Text style={styles.actionButtonText}>Enviar PDF da fatura</Text>
+                  </Pressable>
                 </View>
-
-                {/* Barra de Limite */}
-                <View style={styles.progressSection}>
-                  <View style={styles.progressTrack}>
-                    <View style={[styles.progressFill, { width: '48.5%' }]} />
-                  </View>
-                  <Text style={styles.limitText}>
-                    Limite disponível: R$ 4.124,10 de R$ 8.000,00
-                  </Text>
-                </View>
-              </LinearGradient>
-            </Pressable>
-
-            {/* Cartão Inter final 1190 */}
-            <View style={styles.darkCard}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>Inter final 1190</Text>
-                <Text style={styles.cardSubtitle}>Fecha dia 28, vence dia 07</Text>
-              </View>
-
-              <View style={styles.invoiceRow}>
-                <View style={styles.invoiceCol}>
-                  <Text style={styles.invoiceLabel}>Fatura de outubro</Text>
-                  <Text style={styles.statusBadgeYellow}>Estimada • PDF pendente</Text>
-                </View>
-                <Text style={styles.invoiceValue}>R$ 1.150,40</Text>
-              </View>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Enviar PDF da fatura"
-                onPress={() => router.push('/invoice/import' as any)}
-                style={({ pressed }) => [styles.actionButton, pressed && styles.buttonPressed]}
-              >
-                <Text style={styles.actionButtonText}>Enviar PDF da fatura</Text>
-              </Pressable>
-            </View>
+              </>
+            )}
 
             {/* Resumo de Contas no final da aba Cartões */}
             <View style={styles.accountsGroupCard}>

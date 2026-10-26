@@ -55,7 +55,7 @@ export interface Transaction {
   id: number
   type: TransactionType
   payment_method: PaymentMethod | null
-  amount: number
+  amount: number | string
   currency: string
   date: string
   description: string | null
@@ -84,7 +84,7 @@ export interface Transaction {
 
 export interface TransactionCreate {
   type: TransactionType
-  amount: number
+  amount: number | string
   date: string
   account_id: number
   category_id?: number | null

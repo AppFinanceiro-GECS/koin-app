@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { formatCurrency } from '@/lib/format'
 import { accountsApi } from '@/services/accounts.api'
 import { analyticsApi } from '@/services/analytics.api'
+import { notificationsApi } from '@/services/settings.api'
 import { darkTheme } from '@/theme/colors'
 
 const MONTH_NAMES = [
@@ -52,10 +53,17 @@ export default function DashboardScreen() {
     queryFn: async () => (await accountsApi.list()).data,
   })
 
-  const refreshing = summaryQuery.isRefetching || accountsQuery.isRefetching
+  const notificationsQuery = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: async () => (await notificationsApi.getUnreadCount()).data,
+  })
+  const unreadCount = notificationsQuery.data?.unread_count ?? 2
+
+  const refreshing = summaryQuery.isRefetching || accountsQuery.isRefetching || notificationsQuery.isRefetching
   const onRefresh = () => {
     summaryQuery.refetch()
     accountsQuery.refetch()
+    notificationsQuery.refetch()
   }
 
   const s = summaryQuery.data
@@ -82,12 +90,28 @@ export default function DashboardScreen() {
             accessibilityRole="button"
             accessibilityLabel="Notificações"
             style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
-            onPress={() => Alert.alert('Notificações', 'Você possui 2 alertas pendentes.')}
+            onPress={async () => {
+              try {
+                const list = (await notificationsApi.list({ limit: 5 })).data
+                if (Array.isArray(list) && list.length > 0) {
+                  Alert.alert(
+                    'Notificações',
+                    list.map((n: any) => `• ${n.title || n.message || 'Alerta'}`).join('\n\n')
+                  )
+                } else {
+                  Alert.alert('Notificações', 'Você não possui notificações pendentes.')
+                }
+              } catch {
+                Alert.alert('Notificações', 'Você possui alertas pendentes.')
+              }
+            }}
           >
             <Feather name="bell" size={20} color={darkTheme.text} />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>2</Text>
-            </View>
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
           </Pressable>
         </View>
       </View>

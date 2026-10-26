@@ -1,6 +1,6 @@
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
-export const formatCurrency = (value: number) => currency.format(value)
+export const formatCurrency = (value: number | string) => currency.format(Number(value) || 0)
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 

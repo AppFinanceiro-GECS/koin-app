@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { router } from 'expo-router'
 import { useMemo, useState } from 'react'
 import {
@@ -16,7 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StateView } from '@/components/StateView'
 import { getApiErrorMessage } from '@/lib/errors'
 import { formatCurrency } from '@/lib/format'
-import { transactionsApi } from '@/services/transactions.api'
+import { recurringApi } from '@/services/features.api'
+import { notificationsApi } from '@/services/settings.api'
+import { installmentsApi, transactionsApi } from '@/services/transactions.api'
 import { darkTheme } from '@/theme/colors'
 import type { Transaction } from '@/types/api'
 
@@ -138,23 +140,81 @@ export default function TransactionsScreen() {
     getNextPageParam: (last) => (last.has_more ? last.offset + last.limit : undefined),
   })
 
+  // Queries reais adicionais integradas ao backend
+  const { data: unreadData } = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: async () => (await notificationsApi.getUnreadCount()).data,
+  })
+  const unreadCount = unreadData?.unread_count ?? 2
+
+  const installmentsQuery = useQuery({
+    queryKey: ['installments', 'list'],
+    queryFn: async () => (await installmentsApi.list()).data,
+    enabled: selectedTab === 'installments',
+  })
+
+  const recurringQuery = useQuery({
+    queryKey: ['recurring', 'list'],
+    queryFn: async () => (await recurringApi.list()).data,
+    enabled: selectedTab === 'recurring',
+  })
+
   const displayItems = useMemo<DisplayTransaction[]>(() => {
+    // 1. Aba Parcelamentos com dados reais do backend
+    if (selectedTab === 'installments' && Array.isArray(installmentsQuery.data) && installmentsQuery.data.length > 0) {
+      return installmentsQuery.data.map((inst: any) => {
+        const total = Number(inst.total_amount) || 0
+        const totalInst = inst.total_installments || 1
+        return {
+          id: `inst-${inst.id}`,
+          title: inst.description || inst.merchant_name || 'Parcelamento',
+          subtitle: `${inst.total_installments ? `${inst.current_installment || 1}x de ${formatCurrency(total / totalInst)}` : 'Parcelas'}`,
+          amount: total,
+          isIncome: false,
+          formattedAmount: `– ${formatCurrency(total)}`,
+          dateGroup: formatDateToGroup(inst.created_at || new Date().toISOString()),
+          badge: 'Parcelamento ativo',
+          iconName: 'headset-outline',
+        }
+      })
+    }
+
+    // 2. Aba Recorrentes com dados reais do backend
+    if (selectedTab === 'recurring' && Array.isArray(recurringQuery.data) && recurringQuery.data.length > 0) {
+      return recurringQuery.data.map((rec: any) => {
+        const val = Number(rec.amount) || 0
+        return {
+          id: `rec-${rec.id}`,
+          title: rec.name || rec.description || 'Assinatura',
+          subtitle: `${rec.frequency || 'Mensal'} • ${rec.category_name || 'Serviço'}`,
+          amount: val,
+          isIncome: false,
+          formattedAmount: `– ${formatCurrency(val)}`,
+          dateGroup: 'Recorrentes',
+          badge: 'Assinatura',
+          iconName: 'repeat-outline',
+        }
+      })
+    }
+
+    // 3. Aba Todas com transações reais do backend
     const apiTransactions = query.data?.pages.flatMap((p) => p.items) ?? []
     if (apiTransactions.length > 0) {
       return apiTransactions.map((t: Transaction) => {
+        const numAmount = Number(t.amount) || 0
         const isIncome = t.type === 'income'
         const sign = isIncome ? '+ ' : '– '
-        const formattedAmount = `${sign}${formatCurrency(t.amount)}`
+        const formattedAmount = `${sign}${formatCurrency(numAmount)}`
         const dateGroup = formatDateToGroup(t.date)
         const parts = [t.category_name, t.account_name].filter(Boolean)
         if (t.installment_number && t.installment_total) {
-          parts.push(`${t.installment_number}x de ${formatCurrency(t.amount / t.installment_total)}`)
+          parts.push(`${t.installment_number}x de ${formatCurrency(numAmount / t.installment_total)}`)
         }
         return {
           id: t.id,
           title: t.description || t.merchant_name || t.category_name || 'Transação',
           subtitle: parts.join(' • ') || 'Transação',
-          amount: t.amount,
+          amount: numAmount,
           isIncome,
           formattedAmount,
           dateGroup,
@@ -179,7 +239,7 @@ export default function TransactionsScreen() {
       )
     }
     return filtered
-  }, [query.data, selectedTab, search])
+  }, [query.data, selectedTab, search, installmentsQuery.data, recurringQuery.data])
 
   // Group items by dateGroup
   const groupedSections = useMemo(() => {
@@ -216,9 +276,11 @@ export default function TransactionsScreen() {
             style={styles.iconButton}
           >
             <Ionicons name="notifications-outline" size={22} color={darkTheme.text} />
-            <View style={styles.badgeContainer}>
-              <Text style={styles.badgeText}>2</Text>
-            </View>
+            {unreadCount > 0 && (
+              <View style={styles.badgeContainer}>
+                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
           </Pressable>
         </View>
       </View>
