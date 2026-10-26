@@ -1,5 +1,10 @@
 import api from '@/services/api'
-import type { InvoiceDetailResponse, InvoicePaymentRequest, InvoiceResponse } from '@/types/invoice'
+import type {
+  InvoiceDetailResponse,
+  InvoicePaymentRequest,
+  InvoiceResponse,
+  InvoiceDuplicateWarning,
+} from '@/types/invoice'
 
 export const invoiceService = {
   async getInvoice(invoiceId: number): Promise<InvoiceDetailResponse> {
@@ -39,5 +44,19 @@ export const invoiceService = {
 
     const response = await api.delete(`/credit-cards/invoices/${invoiceId}?${params}`)
     return response.data
+  },
+
+  async getDuplicateWarnings(invoiceId: number): Promise<InvoiceDuplicateWarning> {
+    try {
+      const response = await api.get(`/credit-cards/invoices/${invoiceId}/duplicate-warnings`)
+      return response.data as InvoiceDuplicateWarning
+    } catch (error) {
+      return {
+        has_duplicates: false,
+        estimated_excess: 0,
+        affected_series_pairs: [],
+        duplicate_count: 0,
+      }
+    }
   },
 }

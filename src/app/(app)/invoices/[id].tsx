@@ -5,6 +5,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
 import { invoiceService } from '@/services/invoiceService'
 import { InvoicePaymentModal } from '@/components/invoices/InvoicePaymentModal'
+import { InvoiceTransactionList } from '@/components/invoices/InvoiceTransactionList'
+import { InvoiceDuplicateWarningBanner } from '@/components/invoices/InvoiceDuplicateWarning'
+import { ComingSoonSection } from '@/components/invoices/ComingSoonSection'
 import type { InvoiceResponse } from '@/types/invoice'
 
 export default function InvoiceDetailScreen() {
@@ -18,6 +21,12 @@ export default function InvoiceDetailScreen() {
     queryKey: ['invoice', id],
     queryFn: () => invoiceService.getInvoice(parseInt(id!)),
     enabled: !!id,
+  })
+
+  const { data: duplicateWarning } = useQuery({
+    queryKey: ['invoiceDuplicates', id],
+    queryFn: () => invoiceService.getDuplicateWarnings(parseInt(id!)),
+    enabled: !!id && !!invoice,
   })
 
   const handlePaymentSuccess = (updatedInvoice: InvoiceResponse) => {
@@ -57,6 +66,24 @@ export default function InvoiceDetailScreen() {
     overdue: 'text-red-400',
   }
 
+  const comingSoonFeatures = [
+    {
+      icon: 'document-attach',
+      title: 'Anexar documentos',
+      description: 'Adicione recibos e comprovantes',
+    },
+    {
+      icon: 'chatbox-outline',
+      title: 'Comentários',
+      description: 'Deixe notas sobre a fatura',
+    },
+    {
+      icon: 'download-outline',
+      title: 'Exportar PDF',
+      description: 'Baixe a fatura em PDF',
+    },
+  ]
+
   return (
     <SafeAreaView className="flex-1 bg-slate-950">
       <ScrollView className="flex-1">
@@ -71,6 +98,10 @@ export default function InvoiceDetailScreen() {
         </View>
 
         <View className="p-4 space-y-4">
+          {duplicateWarning && (
+            <InvoiceDuplicateWarningBanner warning={duplicateWarning} />
+          )}
+
           <View className="bg-slate-900 rounded-lg p-4">
             <Text className="text-slate-400 text-sm">Valor total</Text>
             <Text className="text-white text-3xl font-bold">R$ {invoice.total_amount.toFixed(2)}</Text>
@@ -110,8 +141,8 @@ export default function InvoiceDetailScreen() {
 
           {invoice.transaction_count > 0 && (
             <View className="bg-slate-900 rounded-lg p-4">
-              <Text className="text-white font-semibold mb-3">Transações ({invoice.transaction_count})</Text>
-              {/* Transaction list would go here */}
+              <Text className="text-white font-semibold mb-4">Transações ({invoice.transaction_count})</Text>
+              <InvoiceTransactionList transactions={invoice.transactions || []} />
             </View>
           )}
 
@@ -129,6 +160,8 @@ export default function InvoiceDetailScreen() {
               <Text className="text-green-400 text-center font-semibold">✓ Fatura paga</Text>
             </View>
           )}
+
+          <ComingSoonSection title="Próximas funcionalidades" items={comingSoonFeatures} />
         </View>
 
         {successMessage && (

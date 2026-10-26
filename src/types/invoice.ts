@@ -48,3 +48,18 @@ export interface InvoicePaymentRequest {
   payment_date: string
   payment_method?: string
 }
+
+export interface DuplicateSeriesPair {
+  series_a_id: number
+  series_b_id: number
+  series_a_name: string
+  series_b_name: string
+  similarity_score: number
+}
+
+export interface InvoiceDuplicateWarning {
+  has_duplicates: boolean
+  estimated_excess: number
+  affected_series_pairs: DuplicateSeriesPair[]
+  duplicate_count: number
+}
