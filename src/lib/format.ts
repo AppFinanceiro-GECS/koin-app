@@ -27,3 +27,17 @@ export function parseAmount(input: string): number {
   const normalized = cleaned.includes(',') ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned
   return /^\d+(\.\d{1,2})?$/.test(normalized) ? Number(normalized) : NaN
 }
+
+/** Nome do mês em minúsculas, para frases ("compartilhado em outubro"). month: 1-12 */
+export const monthName = (month: number) => MONTHS[month - 1].toLowerCase()
+
+/** ["Marina"] -> "Marina"; ["Marina", "Lucas"] -> "Marina ou Lucas"; 3+ -> "A, B ou C". */
+export function joinWithOr(items: string[]): string {
+  if (items.length <= 1) return items.join('')
+  return `${items.slice(0, -1).join(', ')} ou ${items[items.length - 1]}`
+}
+
+/** A API devolve datetimes em UTC sem sufixo de fuso ("2026-10-01T13:05:00"); sem o "Z" o JS leria como horário local. */
+export function parseApiDate(iso: string): Date {
+  return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`)
+}

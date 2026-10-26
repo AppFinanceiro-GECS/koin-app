@@ -9,4 +9,6 @@ export const authApi = {
   validateInvite: (token: string) => api.get<InviteValidation>(`/auth/invite/${token}`),
   registerWithInvite: (token: string, name: string, password: string) =>
     api.post<Token>(`/auth/invite/${token}`, { name, password }),
+  // TODO: o koin-api ainda não expõe a autoexclusão; este é o contrato esperado (senha no corpo, 204 em sucesso).
+  deleteAccount: (password: string) => api.delete('/users/me', { data: { password } }),
 }

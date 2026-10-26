@@ -1,4 +1,5 @@
 import api from './api'
+import type { FamilyContext, FamilyInviteResponse } from '../types/api'
 
 export const adminApi = {
   // Dashboard
@@ -35,7 +36,7 @@ export const apiKeysApi = {
 
 export const familyApi = {
   // Contexto da familia
-  getContext: () => api.get('/family/context'),
+  getContext: () => api.get<FamilyContext>('/family/context'),
 
   // Membros
   listMembers: () => api.get('/family/members'),
@@ -43,7 +44,7 @@ export const familyApi = {
 
   // Convites
   invite: (email: string, nickname?: string) =>
-    api.post('/family/invite', { email, nickname }),
+    api.post<FamilyInviteResponse>('/family/invite', { email, nickname }),
   listInvitations: () => api.get('/family/invitations'),
   cancelInvitation: (id: number) => api.delete(`/family/invitations/${id}`),
   resendInvitation: (id: number) => api.post(`/family/invitations/${id}/resend`),

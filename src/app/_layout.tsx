@@ -42,6 +42,8 @@ export default function RootLayout() {
           <Stack.Protected guard={status === 'signedOut'}>
             <Stack.Screen name="(auth)" />
           </Stack.Protected>
+          {/* Sem guard: aparece logo depois da exclusão, quando a sessão já foi encerrada. */}
+          <Stack.Screen name="account-deleted" options={{ gestureEnabled: false }} />
         </Stack>
       </SafeAreaProvider>
     </QueryClientProvider>

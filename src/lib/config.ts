@@ -22,3 +22,13 @@ function resolveApiUrl(): string {
 export const API_URL = resolveApiUrl()
 export const API_BASE_URL = `${API_URL}/api/v1`
 export const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0'
+
+/**
+ * Documentos legais e canal de suporte da tela "Privacidade e dados".
+ * TODO: definir as URLs finais (aguardam validação do cliente); enquanto forem null a tela mostra "Em breve".
+ */
+export const LEGAL_LINKS: { privacy: string | null; terms: string | null; support: string | null } = {
+  privacy: null,
+  terms: null,
+  support: null,
+}

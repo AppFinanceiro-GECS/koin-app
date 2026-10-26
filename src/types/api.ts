@@ -141,3 +141,71 @@ export interface AnalyticsSummary {
   previous_period_expense: number | null
   expense_variation: number | null
 }
+
+export interface InvoiceOverviewItem {
+  credit_card_id: number
+  credit_card_name: string
+  reference_month: number
+  reference_year: number
+  closing_date: string
+  due_date: string
+  state: 'not_created' | 'created_no_document' | 'created_with_document' | 'paid' | 'future'
+  is_pending: boolean
+  is_phantom: boolean
+  invoice_id: number | null
+  document_id: number | null
+  total_amount: number | null
+  paid_amount: number | null
+  status: string | null
+}
+
+export interface InvoiceOverview {
+  reference_month: number
+  reference_year: number
+  items: InvoiceOverviewItem[]
+  total_cards: number
+  pending_count: number
+}
+
+export interface HouseholdMember {
+  id: number
+  license_id: number
+  user_id: number
+  user_name: string | null
+  user_email: string | null
+  role: 'owner' | 'member' | string
+  nickname: string | null
+  joined_at: string
+  invited_by_id: number | null
+  can_create_transactions: boolean
+  can_edit_shared: boolean
+  can_invite_members: boolean
+  can_see_all: boolean
+}
+
+export interface FamilyContext {
+  license_id: number
+  license_type: string
+  is_owner: boolean
+  can_invite: boolean
+  member_count: number
+  max_members: number
+  members: HouseholdMember[]
+}
+
+export interface FamilyInviteResponse {
+  invitation_id: number
+  email: string
+  status: string
+  expires_at: string
+}
+
+export interface DocumentSummary {
+  id: number
+  original_filename: string
+  mime_type: string
+  status: string
+  document_type: string | null
+  created_at: string
+  processed_at: string | null
+}
