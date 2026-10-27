@@ -40,6 +40,7 @@ export default function AppLayout() {
       <Stack.Screen name="invoice/import" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="account/modal" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="credit-card/modal" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="credit-card/[id]/invoice" options={{ headerShown: false }} />
     </Stack>
   )
 }
