@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather'
+import { Ionicons } from '@expo/vector-icons'
 import { useQuery } from '@tanstack/react-query'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
@@ -157,13 +158,7 @@ export default function AccountsScreen() {
                 return (
                   <Pressable
                     key={String(card.id)}
-                    onPress={() =>
-                      Alert.alert(title, `Limite: ${formatCurrency(limit)}\nUtilizado: ${formatCurrency(balance)}`, [
-                        { text: 'Editar', onPress: () => router.push(`/credit-card/modal?id=${card.id}` as any) },
-                        { text: 'Enviar fatura', onPress: () => router.push('/invoice/import' as any) },
-                        { text: 'Fechar', style: 'cancel' },
-                      ])
-                    }
+                    onPress={() => router.push(`/credit-card/${card.id}/invoice` as any)}
                     style={({ pressed }) => [pressed && styles.buttonPressed, { marginBottom: 14 }]}
                   >
                     <LinearGradient
@@ -172,9 +167,20 @@ export default function AccountsScreen() {
                       end={{ x: 1, y: 1 }}
                       style={idx === 0 ? styles.cardGradient : styles.darkCard}
                     >
-                      <View style={styles.cardHeader}>
-                        <Text style={styles.cardTitle}>{title}</Text>
-                        <Text style={styles.cardSubtitle}>{subtitle}</Text>
+                      <View style={styles.cardHeaderRow}>
+                        <View style={styles.cardHeader}>
+                          <Text style={styles.cardTitle}>{title}</Text>
+                          <Text style={styles.cardSubtitle}>{subtitle}</Text>
+                        </View>
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation()
+                            router.push(`/credit-card/modal?id=${card.id}` as any)
+                          }}
+                          style={styles.editButton}
+                        >
+                          <Ionicons name="pencil" size={16} color="#a855f7" />
+                        </Pressable>
                       </View>
 
                       <View style={styles.invoiceRow}>
@@ -202,19 +208,7 @@ export default function AccountsScreen() {
               <>
                 {/* Cartão Nubank final 4821 */}
                 <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: '/credit-card/modal',
-                      params: {
-                        id: 'nubank',
-                        name: 'Nubank',
-                        digits: '4821',
-                        limit: '8000',
-                        closingDay: '24',
-                        dueDay: '04',
-                      },
-                    })
-                  }
+                  onPress={() => router.push('/credit-card/nubank/invoice' as any)}
                   style={({ pressed }) => [pressed && styles.buttonPressed]}
                 >
                   <LinearGradient
@@ -223,9 +217,30 @@ export default function AccountsScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.cardGradient}
                   >
-                    <View style={styles.cardHeader}>
-                      <Text style={styles.cardTitle}>Nubank final 4821</Text>
-                      <Text style={styles.cardSubtitle}>Fecha dia 24, vence dia 04</Text>
+                    <View style={styles.cardHeaderRow}>
+                      <View style={styles.cardHeader}>
+                        <Text style={styles.cardTitle}>Nubank final 4821</Text>
+                        <Text style={styles.cardSubtitle}>Fecha dia 24, vence dia 04</Text>
+                      </View>
+                      <Pressable
+                        onPress={(e) => {
+                          e.stopPropagation()
+                          router.push({
+                            pathname: '/credit-card/modal',
+                            params: {
+                              id: 'nubank',
+                              name: 'Nubank',
+                              digits: '4821',
+                              limit: '8000',
+                              closingDay: '24',
+                              dueDay: '04',
+                            },
+                          })
+                        }}
+                        style={styles.editButton}
+                      >
+                        <Ionicons name="pencil" size={16} color="#a855f7" />
+                      </Pressable>
                     </View>
 
                     {/* Fatura de outubro */}
@@ -259,11 +274,26 @@ export default function AccountsScreen() {
                 </Pressable>
 
                 {/* Cartão Inter final 1190 */}
-                <View style={styles.darkCard}>
-                  <View style={styles.cardHeader}>
-                    <Text style={styles.cardTitle}>Inter final 1190</Text>
-                    <Text style={styles.cardSubtitle}>Fecha dia 28, vence dia 07</Text>
-                  </View>
+                <Pressable
+                  onPress={() => router.push('/credit-card/inter/invoice' as any)}
+                  style={({ pressed }) => [pressed && styles.buttonPressed]}
+                >
+                  <View style={styles.darkCard}>
+                    <View style={styles.cardHeaderRow}>
+                      <View style={styles.cardHeader}>
+                        <Text style={styles.cardTitle}>Inter final 1190</Text>
+                        <Text style={styles.cardSubtitle}>Fecha dia 28, vence dia 07</Text>
+                      </View>
+                      <Pressable
+                        onPress={(e) => {
+                          e.stopPropagation()
+                          router.push('/credit-card/modal' as any)
+                        }}
+                        style={styles.editButton}
+                      >
+                        <Ionicons name="pencil" size={16} color="#a855f7" />
+                      </Pressable>
+                    </View>
 
                   <View style={styles.invoiceRow}>
                     <View style={styles.invoiceCol}>
@@ -273,15 +303,16 @@ export default function AccountsScreen() {
                     <Text style={styles.invoiceValue}>R$ 1.150,40</Text>
                   </View>
 
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Enviar PDF da fatura"
-                    onPress={() => router.push('/invoice/import' as any)}
-                    style={({ pressed }) => [styles.actionButton, pressed && styles.buttonPressed]}
-                  >
-                    <Text style={styles.actionButtonText}>Enviar PDF da fatura</Text>
-                  </Pressable>
-                </View>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Enviar PDF da fatura"
+                      onPress={() => router.push('/invoice/import' as any)}
+                      style={({ pressed }) => [styles.actionButton, pressed && styles.buttonPressed]}
+                    >
+                      <Text style={styles.actionButtonText}>Enviar PDF da fatura</Text>
+                    </Pressable>
+                  </View>
+                </Pressable>
               </>
             )}
 
@@ -584,8 +615,20 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
   cardHeader: {
     gap: 4,
+    flex: 1,
+  },
+  editButton: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(168, 85, 247, 0.1)',
   },
   cardTitle: {
     fontSize: 20,

@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, StyleSheet } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
 import { invoiceService } from '@/services/invoiceService'
@@ -57,6 +57,16 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     flex: 1,
+  },
+  cardHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editButton: {
+    padding: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(168, 85, 247, 0.1)',
   },
   cardTitleText: {
     color: '#ffffff',
@@ -118,10 +128,14 @@ const styles = StyleSheet.create({
 
 export default function InvoicesScreen() {
   const router = useRouter()
+  const { creditCardId, creditCardName } = useLocalSearchParams<{
+    creditCardId?: string
+    creditCardName?: string
+  }>()
 
   const { data: invoices = [], isLoading } = useQuery({
-    queryKey: ['invoices'],
-    queryFn: () => invoiceService.listInvoices(undefined, undefined, 50),
+    queryKey: ['invoices', creditCardId],
+    queryFn: () => invoiceService.listInvoices(creditCardId ? parseInt(creditCardId) : undefined, undefined, 50),
   })
 
   const statusColors: Record<string, { backgroundColor: string; textColor: string; label: string }> = {
@@ -143,7 +157,7 @@ export default function InvoicesScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Faturas</Text>
+        <Text style={styles.headerTitle}>{creditCardName ? `Faturas - ${creditCardName}` : 'Faturas'}</Text>
       </View>
 
       <ScrollView style={{ flex: 1 }}>
@@ -169,10 +183,20 @@ export default function InvoicesScreen() {
                       <Text style={styles.cardTitleText}>{invoice.credit_card_name}</Text>
                       <Text style={styles.cardSubtitleText}>{invoice.period_display}</Text>
                     </View>
-                    <View style={[styles.statusBadge, { backgroundColor: statusConfig.backgroundColor }]}>
-                      <Text style={[styles.statusBadgeText, { color: statusConfig.textColor }]}>
-                        {statusConfig.label}
-                      </Text>
+                    <View style={styles.cardHeaderRight}>
+                      <View style={[styles.statusBadge, { backgroundColor: statusConfig.backgroundColor }]}>
+                        <Text style={[styles.statusBadgeText, { color: statusConfig.textColor }]}>
+                          {statusConfig.label}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => {
+                          // TODO: Navigate to edit credit card modal
+                        }}
+                        style={styles.editButton}
+                      >
+                        <Ionicons name="pencil" size={16} color="#a855f7" />
+                      </TouchableOpacity>
                     </View>
                   </View>
 
