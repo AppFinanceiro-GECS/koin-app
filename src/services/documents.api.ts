@@ -1,3 +1,5 @@
+import { Platform } from 'react-native'
+
 import api from './api'
 import type {
   DocumentAsyncUploadResponse,
@@ -11,10 +13,20 @@ export interface UploadFile {
   uri: string
   name: string
   type: string
+  file?: any
 }
 
-const appendFile = (formData: FormData, field: string, file: UploadFile) =>
-  formData.append(field, file as unknown as Blob)
+const appendFile = (formData: FormData, field: string, file: UploadFile) => {
+  if (Platform.OS === 'web' && file.file) {
+    formData.append(field, file.file)
+  } else {
+    formData.append(field, {
+      uri: file.uri,
+      name: file.name || 'document.pdf',
+      type: file.type || 'application/pdf',
+    } as unknown as Blob)
+  }
+}
 
 export const documentsApi = {
   upload: (file: UploadFile, password?: string, creditCardId?: number) => {
@@ -23,7 +35,7 @@ export const documentsApi = {
     if (password) formData.append('password', password)
     if (creditCardId) formData.append('credit_card_id', creditCardId.toString())
     return api.post<DocumentResponse>('/documents', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      transformRequest: (data) => data,
     })
   },
   // Upload async: retorna imediatamente com status "processing"
@@ -33,14 +45,14 @@ export const documentsApi = {
     if (password) formData.append('password', password)
     if (creditCardId) formData.append('credit_card_id', creditCardId.toString())
     return api.post<DocumentAsyncUploadResponse>('/documents/async', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      transformRequest: (data) => data,
     })
   },
   uploadBatch: (files: UploadFile[]) => {
     const formData = new FormData()
     files.forEach((file) => appendFile(formData, 'files', file))
     return api.post('/documents/batch', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+      transformRequest: (data) => data,
     })
   },
   list: () => api.get<DocumentSummary[]>('/documents'),

@@ -53,6 +53,20 @@ api.interceptors.request.use(async (config) => {
     accessToken = await refreshAccessToken()
   }
   config.headers.Authorization = `Bearer ${accessToken}`
+
+  // Permite que o FormData gere o header multipart com boundary dinâmico
+  const isFormData =
+    config.data instanceof FormData ||
+    (config.data && typeof (config.data as any).append === 'function')
+
+  if (isFormData) {
+    if (config.headers && typeof config.headers.delete === 'function') {
+      config.headers.delete('Content-Type')
+    } else if (config.headers) {
+      delete config.headers['Content-Type']
+    }
+  }
+
   return config
 })
 

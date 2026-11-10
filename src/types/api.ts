@@ -95,7 +95,7 @@ export interface TransactionCreate {
   merchant_name?: string | null
   notes?: string | null
   tags?: string[] | null
-  ownership_type?: 'personal' | 'family' | string
+  ownership_type?: 'personal' | 'household' | 'family' | string
   is_fixed?: boolean
   is_installment?: boolean
   installment_current?: number | null

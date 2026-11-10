@@ -130,6 +130,7 @@ export default function InvoiceImportScreen() {
     isProtected?: boolean
     uri?: string
     mimeType?: string
+    file?: any
   } | null>({
     name: 'fatura-inter-outubro.pdf',
     size: '1,2 MB',
@@ -290,6 +291,7 @@ export default function InvoiceImportScreen() {
             asset.mimeType ||
             (asset.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
           isProtected: false,
+          file: (asset as any).file,
         })
         if (asset.name.endsWith('.pdf')) {
           setDocType('invoice')
@@ -320,6 +322,7 @@ export default function InvoiceImportScreen() {
           uri: selectedFile.uri,
           name: selectedFile.name,
           type: selectedFile.mimeType || 'application/pdf',
+          file: selectedFile.file,
         }
         const activeCard = cards?.find((c: { id: number; name?: string }) => c.name === selectedCard)
         const res = await documentsApi.uploadAsync(
@@ -413,7 +416,7 @@ export default function InvoiceImportScreen() {
             is_installment: Boolean(i.installmentInfo),
             installment_current: i.installmentInfo ? 2 : undefined,
             installment_total: i.installmentInfo ? 6 : undefined,
-            ownership_type: i.shareWithFamily ? 'family' : 'personal',
+            ownership_type: (i.shareWithFamily ? 'household' : 'personal') as 'personal' | 'household',
           }))
 
         try {
@@ -422,20 +425,22 @@ export default function InvoiceImportScreen() {
           console.warn('Batch confirm API fallback:', err)
         }
       } else {
-        const couponItems = [
-          { description: 'Arroz 5 kg', amount: 29.9 },
-          { description: 'Café 500 g', amount: 22.5 },
-          { description: 'Frutas e verduras', amount: 35.0 },
+        const activeItems = items.filter((i) => i.selected)
+        const receiptItems = activeItems.length > 0 ? activeItems : [
+          { description: 'Arroz 5 kg', amount: 29.9, shareWithFamily: false },
+          { description: 'Café 500 g', amount: 22.5, shareWithFamily: false },
+          { description: 'Frutas e verduras', amount: 35.0, shareWithFamily: false },
         ]
 
         try {
-          for (const ci of couponItems) {
+          for (const ci of receiptItems) {
             await transactionsApi.create({
               type: 'expense',
-              amount: ci.amount,
+              amount: Math.abs(ci.amount),
               date: today,
               account_id: targetAccountId,
-              description: `${ci.description} (Mercado Extra)`,
+              description: ci.description,
+              ownership_type: ci.shareWithFamily ? 'household' : 'personal',
             })
           }
         } catch (err) {
