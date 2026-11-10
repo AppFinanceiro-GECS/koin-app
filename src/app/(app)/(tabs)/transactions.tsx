@@ -88,7 +88,7 @@ export default function TransactionsScreen() {
     queryKey: ['notifications', 'unread-count'],
     queryFn: async () => (await notificationsApi.getUnreadCount()).data,
   })
-  const unreadCount = unreadData?.unread_count ?? 2
+  const unreadCount = unreadData?.unread_count ?? 0
 
   const installmentsQuery = useQuery({
     queryKey: ['installments', 'list'],

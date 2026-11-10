@@ -152,21 +152,30 @@ export default function NotificationsScreen() {
       markAsReadMutation.mutate(notification.id)
     }
 
-    // Deep-link based on entity_type or action_url
-    if (notification.entity_type === 'document' && notification.entity_id) {
-      router.push({
-        pathname: '/invoice/import',
-        params: { documentId: String(notification.entity_id) },
-      })
+    const type = (notification.type || '').toLowerCase()
+    const title = (notification.title || '').toLowerCase()
+
+    // Para notificações de Fatura Lida / Documentos, leva diretamente para as Movimentações
+    if (
+      notification.entity_type === 'document' ||
+      type === 'document_processed' ||
+      title.includes('fatura') ||
+      notification.action_url?.includes('/documents')
+    ) {
+      router.push('/transactions')
       return
     }
 
-    if (notification.entity_type === 'account') {
+    if (notification.entity_type === 'account' || notification.action_url?.includes('/accounts')) {
       router.push('/accounts')
       return
     }
 
-    if (notification.entity_type === 'credit_card' || notification.entity_type === 'invoice') {
+    if (
+      notification.entity_type === 'credit_card' ||
+      notification.entity_type === 'invoice' ||
+      notification.action_url?.includes('/invoices')
+    ) {
       router.push('/invoices')
       return
     }
@@ -176,24 +185,7 @@ export default function NotificationsScreen() {
       return
     }
 
-    if (notification.action_url) {
-      if (notification.action_url.includes('/documents')) {
-        const docId = notification.entity_id || notification.action_url.split('/').pop()
-        router.push({
-          pathname: '/invoice/import',
-          params: { documentId: String(docId) },
-        })
-        return
-      }
-      if (notification.action_url.includes('/accounts')) {
-        router.push('/accounts')
-        return
-      }
-      if (notification.action_url.includes('/invoices')) {
-        router.push('/invoices')
-        return
-      }
-    }
+    router.push('/transactions')
   }
 
   const filteredNotifications = notifications.filter((n) => {

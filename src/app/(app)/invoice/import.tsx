@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as DocumentPicker from 'expo-document-picker'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router, useLocalSearchParams } from 'expo-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -135,11 +135,7 @@ export default function InvoiceImportScreen() {
     uri?: string
     mimeType?: string
     file?: any
-  } | null>({
-    name: 'fatura-inter-outubro.pdf',
-    size: '1,2 MB',
-    isProtected: false,
-  })
+  } | null>(null)
   const [hasPassword, setHasPassword] = useState(false)
   const [pdfPassword, setPdfPassword] = useState('')
   const [passwordError, setPasswordError] = useState(false)
@@ -220,27 +216,15 @@ export default function InvoiceImportScreen() {
         : simulatedProgress
       : simulatedProgress
 
-  const startSimulatedReading = useCallback(() => {
-    setSimulatedProgress(1)
-    const t1 = setTimeout(() => setSimulatedProgress(2), 700)
-    const t2 = setTimeout(() => setSimulatedProgress(3), 1500)
-    const t3 = setTimeout(() => setSimulatedProgress(4), 2200)
-    const t4 = setTimeout(() => setStep('review'), 3000)
-    return () => {
-      clearTimeout(t1)
-      clearTimeout(t2)
-      clearTimeout(t3)
-      clearTimeout(t4)
-    }
-  }, [])
-
   useEffect(() => {
     if (!documentData || step !== 'reading') return
 
     if (documentData.stage === 'done' || documentData.status === 'completed') {
       const timer = setTimeout(() => {
-        if (documentData.extracted_items && documentData.extracted_items.length > 0) {
-          const mappedItems: ExtractedTransactionItem[] = documentData.extracted_items.map(
+        const rawItems = documentData.extracted_items || []
+
+        if (rawItems.length > 0) {
+          const mappedItems: ExtractedTransactionItem[] = rawItems.map(
             (it, idx) => ({
               id: idx + 1,
               description: it.description,
@@ -328,6 +312,11 @@ export default function InvoiceImportScreen() {
   }
 
   const handleStartUpload = async (force: boolean = false) => {
+    if (!selectedFile?.uri) {
+      Alert.alert('Selecionar arquivo', 'Por favor escolha um arquivo PDF ou imagem do seu dispositivo.')
+      return
+    }
+
     if (hasPassword && pdfPassword.trim().toLowerCase() === 'errada') {
       setPasswordError(true)
       return
@@ -338,89 +327,86 @@ export default function InvoiceImportScreen() {
     setSimulatedProgress(1)
     setStep('reading')
 
-    if (selectedFile?.uri) {
-      try {
-        isUploadingRef.current = true
-        const uploadFile = {
-          uri: selectedFile.uri,
-          name: selectedFile.name,
-          type: selectedFile.mimeType || 'application/pdf',
-          file: selectedFile.file,
-        }
-        const activeCard = cards?.find((c: { id: number; name?: string }) => c.name === selectedCard)
-        const res = await documentsApi.uploadAsync(
-          uploadFile,
-          hasPassword ? pdfPassword : undefined,
-          activeCard?.id,
-          force
-        )
-        isUploadingRef.current = false
-
-        // Se o usuário cancelou a leitura enquanto o upload ainda estava em trânsito
-        if (isReadingCancelledRef.current) {
-          try {
-            await documentsApi.delete(res.data.id)
-          } catch (e) {
-            console.warn('Erro ao excluir upload cancelado:', e)
-          }
-          return
-        }
-
-        setUploadedDocumentId(res.data.id)
-      } catch (err: unknown) {
-        isUploadingRef.current = false
-        if (isReadingCancelledRef.current) {
-          return
-        }
-
-        const dupId = getDuplicateDocumentId(err)
-        if (dupId) {
-          Alert.alert(
-            'Arquivo já recebido',
-            'Este documento já foi enviado anteriormente. Deseja reprocessar com IA para testar novamente ou ver os dados existentes?',
-            [
-              {
-                text: 'Cancelar',
-                style: 'cancel',
-                onPress: () => setStep('upload'),
-              },
-              {
-                text: 'Ver dados',
-                onPress: () => {
-                  setUploadedDocumentId(dupId)
-                  setStep('reading')
-                },
-              },
-              {
-                text: 'Reprocessar com IA',
-                onPress: () => {
-                  handleStartUpload(true)
-                },
-              },
-            ]
-          )
-          return
-        }
-
-        const errObj = err as { response?: { status?: number; data?: { detail?: { error?: string } } } }
-        const status = errObj?.response?.status
-        const detail = errObj?.response?.data?.detail
-        if (status === 422 && detail?.error === 'password_required') {
-          setHasPassword(true)
-          setPasswordError(true)
-          setStep('upload')
-          Alert.alert(
-            'Senha do PDF',
-            'O documento está protegido por senha. Por favor informe a senha para continuar.'
-          )
-          return
-        }
-
-        console.warn('Upload API fallback:', err)
-        startSimulatedReading()
+    try {
+      isUploadingRef.current = true
+      const uploadFile = {
+        uri: selectedFile.uri,
+        name: selectedFile.name,
+        type: selectedFile.mimeType || 'application/pdf',
+        file: selectedFile.file,
       }
-    } else {
-      startSimulatedReading()
+      const activeCard = cards?.find((c: { id: number; name?: string }) => c.name === selectedCard)
+      const res = await documentsApi.uploadAsync(
+        uploadFile,
+        hasPassword ? pdfPassword : undefined,
+        activeCard?.id,
+        force
+      )
+      isUploadingRef.current = false
+
+      // Se o usuário cancelou a leitura enquanto o upload ainda estava em trânsito
+      if (isReadingCancelledRef.current) {
+        try {
+          await documentsApi.delete(res.data.id)
+        } catch (e) {
+          console.warn('Erro ao excluir upload cancelado:', e)
+        }
+        return
+      }
+
+      setUploadedDocumentId(res.data.id)
+    } catch (err: unknown) {
+      isUploadingRef.current = false
+      if (isReadingCancelledRef.current) {
+        return
+      }
+
+      const dupId = getDuplicateDocumentId(err)
+      if (dupId) {
+        Alert.alert(
+          'Arquivo já recebido',
+          'Este documento já foi enviado anteriormente. Deseja reprocessar com IA para testar novamente ou ver os dados existentes?',
+          [
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+              onPress: () => setStep('upload'),
+            },
+            {
+              text: 'Ver dados',
+              onPress: () => {
+                setUploadedDocumentId(dupId)
+                setStep('reading')
+              },
+            },
+            {
+              text: 'Reprocessar com IA',
+              onPress: () => {
+                handleStartUpload(true)
+              },
+            },
+          ]
+        )
+        return
+      }
+
+      const errObj = err as { response?: { status?: number; data?: { detail?: { error?: string } } } }
+      const status = errObj?.response?.status
+      const detail = errObj?.response?.data?.detail
+      if (status === 422 && detail?.error === 'password_required') {
+        setHasPassword(true)
+        setPasswordError(true)
+        setStep('upload')
+        Alert.alert(
+          'Senha do PDF',
+          'O documento está protegido por senha. Por favor informe a senha para continuar.'
+        )
+        return
+      }
+
+      console.warn('Upload API error:', err)
+      Alert.alert('Erro no envio', 'Não foi possível ler o documento no momento. Tente novamente.')
+      setStep('upload')
     }
   }
 
@@ -468,6 +454,7 @@ export default function InvoiceImportScreen() {
         const batchItems = items
           .filter((i) => i.selected)
           .map((i) => ({
+            document_id: uploadedDocumentId || undefined,
             account_id: targetAccountId,
             amount: Math.abs(i.amount),
             date: today,
@@ -732,44 +719,7 @@ export default function InvoiceImportScreen() {
             {/* Escolher PDF / Arquivo */}
             <Pressable
               style={styles.uploadArea}
-              onPress={() => {
-                Alert.alert(
-                  'Selecionar Documento',
-                  'Escolha a fonte do arquivo da fatura ou cupom:',
-                  [
-                    {
-                      text: '📁 Escolher arquivo do aparelho',
-                      onPress: handlePickDocument,
-                    },
-                    {
-                      text: '📄 Fatura Inter (Exemplo)',
-                      onPress: () => {
-                        setSelectedFile({ name: 'fatura-inter-outubro.pdf', size: '1,2 MB', isProtected: false })
-                        setDocType('invoice')
-                        setHasPassword(false)
-                        setPasswordError(false)
-                      },
-                    },
-                    {
-                      text: '🔒 Fatura com Senha (Teste)',
-                      onPress: () => {
-                        setSelectedFile({ name: 'inter-outubro-protegido.pdf', size: '1,4 MB', isProtected: true })
-                        setDocType('invoice')
-                        setHasPassword(true)
-                      },
-                    },
-                    {
-                      text: '🧾 Cupom Fiscal (Exemplo)',
-                      onPress: () => {
-                        setSelectedFile({ name: 'cupom-mercado-extra.jpg', size: '2,8 MB' })
-                        setDocType('receipt')
-                        setHasPassword(false)
-                      },
-                    },
-                    { text: 'Cancelar', style: 'cancel' },
-                  ]
-                )
-              }}
+              onPress={handlePickDocument}
             >
               <View style={styles.uploadIconContainer}>
                 <Ionicons name="cloud-upload-outline" size={28} color="#a78bfa" />
