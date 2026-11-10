@@ -212,7 +212,8 @@ export default function TransactionsScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Notificações"
-            style={styles.iconButton}
+            style={({ pressed }) => [styles.iconButton, pressed && { opacity: 0.7 }]}
+            onPress={() => router.push('/notifications')}
           >
             <Ionicons name="notifications-outline" size={22} color={darkTheme.text} />
             {unreadCount > 0 && (

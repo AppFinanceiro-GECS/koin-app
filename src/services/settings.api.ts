@@ -1,4 +1,5 @@
 import api from './api'
+import type { AppNotification, NotificationSummary, UnreadCountResponse } from '../types/notification'
 import type { FamilyContext, FamilyInviteResponse } from '../types/api'
 
 export const adminApi = {
@@ -53,11 +54,11 @@ export const familyApi = {
 export const notificationsApi = {
   // Notifications
   list: (params?: { limit?: number; offset?: number; unread_only?: boolean; type?: string }) =>
-    api.get('/notifications', { params }),
-  getUnreadCount: () => api.get('/notifications/unread-count'),
-  getSummary: () => api.get('/notifications/summary'),
-  get: (id: number) => api.get(`/notifications/${id}`),
-  markAsRead: (id: number) => api.post(`/notifications/${id}/read`),
+    api.get<AppNotification[]>('/notifications', { params }),
+  getUnreadCount: () => api.get<UnreadCountResponse>('/notifications/unread-count'),
+  getSummary: () => api.get<NotificationSummary>('/notifications/summary'),
+  get: (id: number) => api.get<AppNotification>(`/notifications/${id}`),
+  markAsRead: (id: number) => api.post<AppNotification>(`/notifications/${id}/read`),
   markAllAsRead: () => api.post('/notifications/read-all'),
   dismiss: (id: number) => api.delete(`/notifications/${id}`),
 

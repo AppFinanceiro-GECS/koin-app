@@ -101,21 +101,7 @@ export default function DashboardScreen() {
             accessibilityRole="button"
             accessibilityLabel="Notificações"
             style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
-            onPress={async () => {
-              try {
-                const list = (await notificationsApi.list({ limit: 5 })).data
-                if (Array.isArray(list) && list.length > 0) {
-                  Alert.alert(
-                    'Notificações',
-                    list.map((n: any) => `• ${n.title || n.message || 'Alerta'}`).join('\n\n')
-                  )
-                } else {
-                  Alert.alert('Notificações', 'Você não possui notificações pendentes.')
-                }
-              } catch {
-                Alert.alert('Notificações', 'Você possui alertas pendentes.')
-              }
-            }}
+            onPress={() => router.push('/notifications')}
           >
             <Feather name="bell" size={20} color={darkTheme.text} />
             {unreadCount > 0 && (

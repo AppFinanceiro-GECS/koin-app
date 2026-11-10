@@ -28,6 +28,7 @@ export default function AppLayout() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ headerShown: false }} />
       <Stack.Screen name="installments" options={{ headerShown: false }} />
       <Stack.Screen name="invoices" options={{ headerShown: false }} />
       <Stack.Screen name="monthly-summary" options={{ headerShown: false }} />

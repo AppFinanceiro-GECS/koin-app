@@ -102,14 +102,7 @@ export default function ProfileScreen() {
             accessibilityRole="button"
             accessibilityLabel="Notificações"
             style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
-            onPress={() =>
-              Alert.alert(
-                'Notificações',
-                unreadCount > 0
-                  ? `Você possui ${unreadCount} alerta(s) pendente(s).`
-                  : 'Nenhum alerta pendente no momento.'
-              )
-            }
+            onPress={() => router.push('/notifications')}
           >
             <Feather name="bell" size={20} color={darkTheme.text} />
             {unreadCount > 0 && (

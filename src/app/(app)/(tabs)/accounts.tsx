@@ -5,7 +5,6 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
 import { useState } from 'react'
 import {
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -17,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { formatCurrency } from '@/lib/format'
 import { accountsApi, creditCardsApi } from '@/services/accounts.api'
+import { notificationsApi } from '@/services/settings.api'
 import { transactionsApi } from '@/services/transactions.api'
 import { useAuthStore } from '@/stores/authStore'
 import { darkTheme } from '@/theme/colors'
@@ -68,14 +68,22 @@ export default function AccountsScreen() {
     enabled: Boolean(selectedAccount?.id),
   })
 
+  const notificationsQuery = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: async () => (await notificationsApi.getUnreadCount()).data,
+  })
+  const unreadCount = notificationsQuery.data?.unread_count ?? 0
+
   const refreshing =
     accountsQuery.isRefetching ||
     cardsQuery.isRefetching ||
-    accountTxQuery.isRefetching
+    accountTxQuery.isRefetching ||
+    notificationsQuery.isRefetching
   const onRefresh = () => {
     accountsQuery.refetch()
     cardsQuery.refetch()
     accountTxQuery.refetch()
+    notificationsQuery.refetch()
   }
 
   return (
@@ -97,12 +105,14 @@ export default function AccountsScreen() {
             accessibilityRole="button"
             accessibilityLabel="Notificações"
             style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
-            onPress={() => Alert.alert('Notificações', 'Você possui 2 alertas pendentes.')}
+            onPress={() => router.push('/notifications')}
           >
             <Feather name="bell" size={20} color={darkTheme.text} />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>2</Text>
-            </View>
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
           </Pressable>
         </View>
       </View>
