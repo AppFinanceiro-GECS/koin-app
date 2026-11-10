@@ -135,10 +135,10 @@ export function KoinTabBar(props: KoinTabBarProps) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#120e1e',
+    backgroundColor: darkTheme.background,
     borderTopWidth: 1,
-    borderTopColor: '#2b233c',
-    paddingTop: 10,
+    borderTopColor: darkTheme.border,
+    paddingTop: 8,
     paddingHorizontal: 8,
   },
   tabBarInner: {
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconContainerActive: {
-    backgroundColor: '#271b40',
+    backgroundColor: '#1c142e',
   },
   tabLabel: {
     fontSize: 11,
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     borderWidth: 1.2,
-    borderColor: '#7952bc',
+    borderColor: '#7c3aed',
     overflow: 'hidden',
   },
   fabPressed: {

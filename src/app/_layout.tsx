@@ -6,6 +6,7 @@ import { useEffect } from 'react'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
 import { useAuthStore } from '@/stores/authStore'
+import { darkTheme } from '@/theme/colors'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -35,7 +36,12 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
         <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: darkTheme.background },
+          }}
+        >
           <Stack.Protected guard={status === 'signedIn'}>
             <Stack.Screen name="(app)" />
           </Stack.Protected>

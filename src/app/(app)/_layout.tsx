@@ -20,7 +20,8 @@ export default function AppLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: darkTheme.surface },
+        headerShown: false,
+        headerStyle: { backgroundColor: darkTheme.background },
         headerTintColor: darkTheme.text,
         headerTitleStyle: { fontWeight: '600' },
         contentStyle: { backgroundColor: darkTheme.background },
@@ -34,7 +35,7 @@ export default function AppLayout() {
       <Stack.Screen name="delete-account" options={{ headerShown: false }} />
       <Stack.Screen name="family/index" options={{ headerShown: false }} />
       <Stack.Screen name="family/invite" options={{ headerShown: false, presentation: 'modal' }} />
-      <Stack.Screen name="transaction/new" options={{ title: 'Nova transação', presentation: 'modal' }} />
+      <Stack.Screen name="transaction/new" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="transaction/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="invoice/duplicate" options={{ headerShown: false }} />
       <Stack.Screen name="invoice/import" options={{ headerShown: false, presentation: 'modal' }} />
