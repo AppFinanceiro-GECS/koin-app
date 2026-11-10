@@ -214,8 +214,6 @@ export default function NotificationsScreen() {
         ]}
         onPress={() => handleNotificationAction(item)}
       >
-        {isUnread && <View style={styles.unreadAccentBar} />}
-
         <View style={styles.cardHeader}>
           <View style={[styles.iconContainer, { backgroundColor: visuals.bgColor }]}>
             <Ionicons name={visuals.iconName} size={20} color={visuals.color} />
@@ -483,14 +481,6 @@ const styles = StyleSheet.create({
   notificationCardUnread: {
     backgroundColor: '#140e26',
     borderColor: '#3a2b56',
-  },
-  unreadAccentBar: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
-    backgroundColor: darkTheme.primary,
   },
   cardHeader: {
     flexDirection: 'row',
