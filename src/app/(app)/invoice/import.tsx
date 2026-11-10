@@ -1,8 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import * as DocumentPicker from 'expo-document-picker'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -17,8 +18,10 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { getDuplicateDocumentId } from '@/lib/documents'
 import { formatCurrency } from '@/lib/format'
 import { accountsApi, creditCardsApi } from '@/services/accounts.api'
+import { documentsApi } from '@/services/documents.api'
 import { transactionsApi } from '@/services/transactions.api'
 import { darkTheme } from '@/theme/colors'
 
@@ -125,6 +128,8 @@ export default function InvoiceImportScreen() {
     name: string
     size: string
     isProtected?: boolean
+    uri?: string
+    mimeType?: string
   } | null>({
     name: 'fatura-inter-outubro.pdf',
     size: '1,2 MB',
@@ -133,9 +138,10 @@ export default function InvoiceImportScreen() {
   const [hasPassword, setHasPassword] = useState(false)
   const [pdfPassword, setPdfPassword] = useState('')
   const [passwordError, setPasswordError] = useState(false)
+  const [uploadedDocumentId, setUploadedDocumentId] = useState<number | null>(null)
 
-  // Reading state simulation
-  const [readingProgress, setReadingProgress] = useState(1)
+  // Reading state
+  const [simulatedProgress, setSimulatedProgress] = useState(1)
 
   // Review state
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('pending')
@@ -175,30 +181,184 @@ export default function InvoiceImportScreen() {
     userReceiptAccount ??
     (Array.isArray(accounts) && accounts.length > 0 ? accounts[0].name : 'Conta Itaú • Conta corrente')
 
-  // Animate reading progress when entering 'reading' step
-  useEffect(() => {
-    if (step === 'reading') {
-      const t1 = setTimeout(() => setReadingProgress(2), 700)
-      const t2 = setTimeout(() => setReadingProgress(3), 1500)
-      const t3 = setTimeout(() => setReadingProgress(4), 2200)
-      const t4 = setTimeout(() => setStep('review'), 3000)
-      return () => {
-        clearTimeout(t1)
-        clearTimeout(t2)
-        clearTimeout(t3)
-        clearTimeout(t4)
-      }
-    }
-  }, [step])
+  // Acompanhamento do processamento do documento real no backend (#37 / #57)
+  const { data: documentData } = useQuery({
+    queryKey: ['document-status', uploadedDocumentId],
+    queryFn: async () => {
+      if (!uploadedDocumentId) return null
+      const res = await documentsApi.get(uploadedDocumentId)
+      return res.data
+    },
+    enabled: Boolean(uploadedDocumentId) && step === 'reading',
+    refetchInterval: (query) => {
+      const data = query.state.data
+      if (!data) return 1500
+      if (data.status === 'completed' || data.stage === 'done') return false
+      if (data.status === 'failed' || data.stage === 'failed') return false
+      return 1500
+    },
+  })
 
-  const handleStartUpload = () => {
+  // Deriva o progresso do backend se houver documento ativo, senão usa a simulação
+  const readingProgress =
+    uploadedDocumentId && documentData?.stage
+      ? documentData.stage === 'received'
+        ? 1
+        : documentData.stage === 'extracting' || documentData.stage === 'waiting'
+        ? 2
+        : documentData.stage === 'validating'
+        ? 3
+        : documentData.stage === 'done' || documentData.status === 'completed'
+        ? 4
+        : simulatedProgress
+      : simulatedProgress
+
+  const startSimulatedReading = useCallback(() => {
+    setSimulatedProgress(1)
+    const t1 = setTimeout(() => setSimulatedProgress(2), 700)
+    const t2 = setTimeout(() => setSimulatedProgress(3), 1500)
+    const t3 = setTimeout(() => setSimulatedProgress(4), 2200)
+    const t4 = setTimeout(() => setStep('review'), 3000)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+      clearTimeout(t4)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!documentData || step !== 'reading') return
+
+    if (documentData.stage === 'done' || documentData.status === 'completed') {
+      const timer = setTimeout(() => {
+        if (documentData.extracted_items && documentData.extracted_items.length > 0) {
+          const mappedItems: ExtractedTransactionItem[] = documentData.extracted_items.map(
+            (it, idx) => ({
+              id: idx + 1,
+              description: it.description,
+              date: it.date ? `${it.date.slice(8, 10)}/${it.date.slice(5, 7)}` : '01/10',
+              category: it.category || 'Geral',
+              amount: it.amount,
+              isPayment: it.transaction_type === 'pagamento' || it.amount < 0,
+              isDuplicate: it.is_duplicate,
+              installmentInfo: it.is_installment
+                ? `Parcela ${it.installment_current ?? 1} de ${it.installment_total ?? 1}.`
+                : undefined,
+              selected: !it.is_duplicate,
+              isPending: Boolean(it.is_installment) || Boolean(it.is_duplicate),
+              shareWithFamily: false,
+            })
+          )
+          setItems(mappedItems)
+        }
+        if (documentData.card_info?.card_name) {
+          setSelectedCard(documentData.card_info.card_name)
+        }
+        setStep('review')
+      }, 700)
+      return () => clearTimeout(timer)
+    } else if (documentData.status === 'failed' || documentData.stage === 'failed') {
+      Alert.alert(
+        'Falha no processamento',
+        documentData.error_message ||
+          'Não conseguimos extrair os lançamentos deste arquivo. Deseja revisar os dados de exemplo?',
+        [
+          { text: 'Voltar', style: 'cancel', onPress: () => setStep('upload') },
+          { text: 'Ver exemplo', onPress: () => setStep('review') },
+        ]
+      )
+    }
+  }, [documentData, step])
+
+  const handlePickDocument = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/jpeg', 'image/png'],
+        copyToCacheDirectory: true,
+      })
+      if (!res.canceled && res.assets && res.assets.length > 0) {
+        const asset = res.assets[0]
+        const sizeFormatted = asset.size
+          ? `${(asset.size / (1024 * 1024)).toFixed(1)} MB`
+          : '1,0 MB'
+        setSelectedFile({
+          name: asset.name,
+          size: sizeFormatted,
+          uri: asset.uri,
+          mimeType:
+            asset.mimeType ||
+            (asset.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+          isProtected: false,
+        })
+        if (asset.name.endsWith('.pdf')) {
+          setDocType('invoice')
+        } else {
+          setDocType('receipt')
+        }
+        setHasPassword(false)
+        setPasswordError(false)
+      }
+    } catch (err) {
+      console.warn('Erro ao selecionar arquivo:', err)
+    }
+  }
+
+  const handleStartUpload = async () => {
     if (hasPassword && pdfPassword.trim().toLowerCase() === 'errada') {
       setPasswordError(true)
       return
     }
     setPasswordError(false)
-    setReadingProgress(1)
+    setUploadedDocumentId(null)
+    setSimulatedProgress(1)
     setStep('reading')
+
+    if (selectedFile?.uri) {
+      try {
+        const uploadFile = {
+          uri: selectedFile.uri,
+          name: selectedFile.name,
+          type: selectedFile.mimeType || 'application/pdf',
+        }
+        const activeCard = cards?.find((c: { id: number; name?: string }) => c.name === selectedCard)
+        const res = await documentsApi.uploadAsync(
+          uploadFile,
+          hasPassword ? pdfPassword : undefined,
+          activeCard?.id
+        )
+        setUploadedDocumentId(res.data.id)
+      } catch (err: unknown) {
+        const dupId = getDuplicateDocumentId(err)
+        if (dupId) {
+          router.push({
+            pathname: '/invoice/duplicate',
+            params: { documentId: String(dupId) },
+          })
+          setStep('upload')
+          return
+        }
+
+        const errObj = err as { response?: { status?: number; data?: { detail?: { error?: string } } } }
+        const status = errObj?.response?.status
+        const detail = errObj?.response?.data?.detail
+        if (status === 422 && detail?.error === 'password_required') {
+          setHasPassword(true)
+          setPasswordError(true)
+          setStep('upload')
+          Alert.alert(
+            'Senha do PDF',
+            'O documento está protegido por senha. Por favor informe a senha para continuar.'
+          )
+          return
+        }
+
+        console.warn('Upload API fallback:', err)
+        startSimulatedReading()
+      }
+    } else {
+      startSimulatedReading()
+    }
   }
 
   const handleToggleItemSelection = (id: number) => {
@@ -479,25 +639,32 @@ export default function InvoiceImportScreen() {
                   'Escolha a fonte do arquivo da fatura ou cupom:',
                   [
                     {
-                      text: 'Fatura Inter PDF (Padrão)',
+                      text: '📁 Escolher arquivo do aparelho',
+                      onPress: handlePickDocument,
+                    },
+                    {
+                      text: '📄 Fatura Inter (Exemplo)',
                       onPress: () => {
                         setSelectedFile({ name: 'fatura-inter-outubro.pdf', size: '1,2 MB', isProtected: false })
+                        setDocType('invoice')
                         setHasPassword(false)
                         setPasswordError(false)
                       },
                     },
                     {
-                      text: 'Fatura com Senha (Teste de senha)',
+                      text: '🔒 Fatura com Senha (Teste)',
                       onPress: () => {
                         setSelectedFile({ name: 'inter-outubro-protegido.pdf', size: '1,4 MB', isProtected: true })
+                        setDocType('invoice')
                         setHasPassword(true)
                       },
                     },
                     {
-                      text: 'Cupom Mercado Extra (Foto)',
+                      text: '🧾 Cupom Fiscal (Exemplo)',
                       onPress: () => {
                         setSelectedFile({ name: 'cupom-mercado-extra.jpg', size: '2,8 MB' })
                         setDocType('receipt')
+                        setHasPassword(false)
                       },
                     },
                     { text: 'Cancelar', style: 'cancel' },

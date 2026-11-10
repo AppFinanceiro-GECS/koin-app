@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather'
+import { useQuery } from '@tanstack/react-query'
 import { router } from 'expo-router'
 import {
   Alert,
@@ -12,6 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { APP_VERSION } from '@/lib/config'
+import { notificationsApi } from '@/services/settings.api'
+import { installmentsApi } from '@/services/transactions.api'
 import { useAuthStore } from '@/stores/authStore'
 import { darkTheme } from '@/theme/colors'
 
@@ -45,6 +48,25 @@ function MenuItem({ icon, title, subtitle, onPress }: MenuItemProps) {
 export default function ProfileScreen() {
   const user = useAuthStore((s) => s.user)
   const signOut = useAuthStore((s) => s.signOut)
+
+  const unreadQuery = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: async () => (await notificationsApi.getUnreadCount()).data.unread_count,
+    staleTime: 30_000,
+  })
+
+  const installmentsQuery = useQuery({
+    queryKey: ['installments', 'count'],
+    queryFn: async () => {
+      const res = await installmentsApi.list({ limit: 100 })
+      const data = res.data
+      return Array.isArray(data) ? data.length : (data?.items?.length ?? 0)
+    },
+    staleTime: 60_000,
+  })
+
+  const unreadCount = unreadQuery.data ?? 0
+  const installmentsCount = installmentsQuery.data ?? 0
 
   const displayName = user?.name || 'Pedro Andrade'
   const displaySubtitle = user?.email || 'Família Andrade'
@@ -80,12 +102,21 @@ export default function ProfileScreen() {
             accessibilityRole="button"
             accessibilityLabel="Notificações"
             style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
-            onPress={() => Alert.alert('Notificações', 'Você possui 2 alertas pendentes.')}
+            onPress={() =>
+              Alert.alert(
+                'Notificações',
+                unreadCount > 0
+                  ? `Você possui ${unreadCount} alerta(s) pendente(s).`
+                  : 'Nenhum alerta pendente no momento.'
+              )
+            }
           >
             <Feather name="bell" size={20} color={darkTheme.text} />
-            <View style={styles.notificationBadge}>
-              <Text style={styles.notificationBadgeText}>2</Text>
-            </View>
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
+              </View>
+            )}
           </Pressable>
         </View>
       </View>
@@ -117,7 +148,7 @@ export default function ProfileScreen() {
           <MenuItem
             icon="layers"
             title="Parcelamentos"
-            subtitle="4 compras parceladas"
+            subtitle={`${installmentsCount} compra(s) parcelada(s)`}
             onPress={() => router.push('/installments')}
           />
           <View style={styles.divider} />
@@ -135,14 +166,25 @@ export default function ProfileScreen() {
             icon="upload"
             title="Importar documento"
             subtitle="Fatura ou cupom · foto ou PDF"
-            onPress={() => Alert.alert('Importar documento', 'Envie a foto ou PDF da sua fatura.')}
+            onPress={() => router.push('/invoice/import')}
           />
           <View style={styles.divider} />
           <MenuItem
             icon="bell"
             title="Notificações"
-            subtitle="2 não lidas · preferências de e-mail"
-            onPress={() => Alert.alert('Notificações', 'Preferências de alertas e e-mail.')}
+            subtitle={
+              unreadCount > 0
+                ? `${unreadCount} não lida(s) · alertas`
+                : 'Nenhum alerta pendente'
+            }
+            onPress={() =>
+              Alert.alert(
+                'Notificações',
+                unreadCount > 0
+                  ? `Você tem ${unreadCount} notificação(ões) pendente(s).`
+                  : 'Nenhum alerta novo.'
+              )
+            }
           />
           <View style={styles.divider} />
           <MenuItem

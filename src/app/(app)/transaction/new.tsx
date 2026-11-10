@@ -1,8 +1,9 @@
 import Feather from '@expo/vector-icons/Feather'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { router } from 'expo-router'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -17,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { getApiErrorMessage } from '@/lib/errors'
 import { formatCurrency, parseAmount, toISODate } from '@/lib/format'
-import { accountsApi } from '@/services/accounts.api'
+import { accountsApi, creditCardsApi } from '@/services/accounts.api'
 import { categoriesApi, transactionsApi } from '@/services/transactions.api'
 import { darkTheme } from '@/theme/colors'
 import type { PaymentMethod, TransactionCreate } from '@/types/api'
@@ -40,13 +41,6 @@ const DEFAULT_INCOME_CATEGORIES = [
   'Outros',
 ]
 
-const PAYMENT_METHODS = [
-  { label: 'Cartão Nubank', value: 'credit_card' as PaymentMethod },
-  { label: 'Cartão Inter', value: 'credit_card' as PaymentMethod },
-  { label: 'Conta Itaú', value: 'pix' as PaymentMethod },
-  { label: 'Dinheiro', value: 'cash' as PaymentMethod },
-]
-
 export default function NewTransactionScreen() {
   const queryClient = useQueryClient()
 
@@ -55,20 +49,82 @@ export default function NewTransactionScreen() {
   const [description, setDescription] = useState('Fone de ouvido')
   const [selectedCategoryName, setSelectedCategoryName] = useState('Eletrônicos')
   const [date, setDate] = useState(toISODate(new Date()))
-  const [paymentOption, setPaymentOption] = useState('Cartão Nubank')
-  const [originAccount, setOriginAccount] = useState('Conta Itaú')
-  const [destinationAccount, setDestinationAccount] = useState('Conta Inter')
-  const [loading, setLoading] = useState(false)
+
+  // ID / Seleções dinâmicas
+  const [selectedPaymentKey, setSelectedPaymentKey] = useState<string>('')
+  const [selectedIncomeAccountId, setSelectedIncomeAccountId] = useState<number | null>(null)
+  const [selectedOriginAccountId, setSelectedOriginAccountId] = useState<number | null>(null)
+  const [selectedDestAccountId, setSelectedDestAccountId] = useState<number | null>(null)
 
   const accountsQuery = useQuery({
     queryKey: ['accounts'],
     queryFn: async () => (await accountsApi.list()).data,
   })
 
+  const cardsQuery = useQuery({
+    queryKey: ['credit-cards'],
+    queryFn: async () => (await creditCardsApi.list()).data,
+  })
+
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
     queryFn: async () => (await categoriesApi.list()).data,
   })
+
+  // Montar opções dinâmicas de pagamento para Despesa
+  const paymentOptions = useMemo(() => {
+    const list: {
+      key: string
+      label: string
+      type: 'card' | 'account' | 'cash'
+      id?: number
+    }[] = []
+
+    if (cardsQuery.data && cardsQuery.data.length > 0) {
+      cardsQuery.data.forEach((c: { id: number; name?: string; brand?: string; last_digits?: string }) => {
+        list.push({
+          key: `card-${c.id}`,
+          label: c.name || `Cartão ${c.brand || ''} ••${c.last_digits || ''}`,
+          type: 'card',
+          id: c.id,
+        })
+      })
+    } else {
+      list.push({ key: 'card-nubank', label: 'Cartão Nubank', type: 'card' })
+      list.push({ key: 'card-inter', label: 'Cartão Inter', type: 'card' })
+    }
+
+    if (accountsQuery.data && accountsQuery.data.length > 0) {
+      accountsQuery.data.forEach((a) => {
+        list.push({
+          key: `acc-${a.id}`,
+          label: a.name,
+          type: 'account',
+          id: a.id,
+        })
+      })
+    } else {
+      list.push({ key: 'acc-itau', label: 'Conta Itaú', type: 'account' })
+    }
+
+    list.push({ key: 'cash', label: 'Dinheiro', type: 'cash' })
+    return list
+  }, [cardsQuery.data, accountsQuery.data])
+
+  // Chave ativa de pagamento
+  const activePaymentKey = selectedPaymentKey || paymentOptions[0]?.key || ''
+
+  // Contas disponíveis
+  const availableAccounts = useMemo(() => {
+    if (accountsQuery.data && accountsQuery.data.length > 0) {
+      return accountsQuery.data
+    }
+    return [
+      { id: 1, name: 'Conta Itaú • Conta corrente' },
+      { id: 2, name: 'Conta Inter' },
+      { id: 3, name: 'Carteira' },
+    ]
+  }, [accountsQuery.data])
 
   const mutation = useMutation({
     mutationFn: (payload: TransactionCreate) => transactionsApi.create(payload),
@@ -106,25 +162,49 @@ export default function NewTransactionScreen() {
       return
     }
 
-    // Identificar accountId
-    const firstAccount = accountsQuery.data?.[0]?.id ?? 1
+    const firstAccountId = accountsQuery.data?.[0]?.id ?? 1
     const matchingCat = categoriesQuery.data?.find((c) => c.name === selectedCategoryName)?.id
 
-    setLoading(true)
-    mutation.mutate(
-      {
-        type: kind === 'transfer' ? 'transfer' : kind,
-        amount: val,
-        date,
-        account_id: firstAccount,
-        category_id: matchingCat ?? null,
-        description: description.trim() || undefined,
-        payment_method: kind === 'expense' ? 'pix' : null,
-      },
-      {
-        onSettled: () => setLoading(false),
+    let accountId = firstAccountId
+    let creditCardId: number | undefined
+    let paymentMethod: PaymentMethod = 'pix'
+
+    if (kind === 'expense') {
+      const selectedOpt = paymentOptions.find((p) => p.key === activePaymentKey)
+      if (selectedOpt?.type === 'card') {
+        creditCardId = selectedOpt.id
+        paymentMethod = 'credit_card'
+      } else if (selectedOpt?.type === 'account' && selectedOpt.id) {
+        accountId = selectedOpt.id
+        paymentMethod = 'pix'
+      } else if (selectedOpt?.type === 'cash') {
+        paymentMethod = 'cash'
       }
-    )
+    } else if (kind === 'income') {
+      accountId = selectedIncomeAccountId || availableAccounts[0]?.id || firstAccountId
+      paymentMethod = 'bank_transfer'
+    } else if (kind === 'transfer') {
+      accountId = selectedOriginAccountId || availableAccounts[0]?.id || firstAccountId
+    }
+
+    const destAccountId =
+      kind === 'transfer'
+        ? selectedDestAccountId ||
+          availableAccounts.find((a) => a.id !== accountId)?.id ||
+          availableAccounts[1]?.id
+        : undefined
+
+    mutation.mutate({
+      type: kind === 'transfer' ? 'transfer' : kind,
+      amount: val,
+      date,
+      account_id: accountId,
+      destination_account_id: destAccountId,
+      credit_card_id: creditCardId,
+      category_id: matchingCat ?? null,
+      description: description.trim() || undefined,
+      payment_method: paymentMethod,
+    })
   }
 
   const parsedVal = parseAmount(amount)
@@ -292,12 +372,12 @@ export default function NewTransactionScreen() {
               <View style={styles.fieldGroup}>
                 <Text style={styles.fieldLabel}>Pagar com</Text>
                 <View style={styles.chipsRow}>
-                  {PAYMENT_METHODS.map((pm) => {
-                    const active = paymentOption === pm.label
+                  {paymentOptions.map((opt) => {
+                    const active = activePaymentKey === opt.key
                     return (
                       <Pressable
-                        key={pm.label}
-                        onPress={() => setPaymentOption(pm.label)}
+                        key={opt.key}
+                        onPress={() => setSelectedPaymentKey(opt.key)}
                         style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
                       >
                         <Text
@@ -306,7 +386,7 @@ export default function NewTransactionScreen() {
                             active ? styles.chipLabelActive : styles.chipLabelInactive,
                           ]}
                         >
-                          {pm.label}
+                          {opt.label}
                         </Text>
                       </Pressable>
                     )
@@ -335,12 +415,13 @@ export default function NewTransactionScreen() {
               <View style={styles.fieldGroup}>
                 <Text style={styles.fieldLabel}>Conta de destino</Text>
                 <View style={styles.chipsRow}>
-                  {['Conta Itaú · Conta corrente', 'Conta Inter', 'Carteira'].map((acc) => {
-                    const active = destinationAccount === acc
+                  {availableAccounts.map((acc) => {
+                    const active =
+                      (selectedIncomeAccountId ?? availableAccounts[0]?.id) === acc.id
                     return (
                       <Pressable
-                        key={acc}
-                        onPress={() => setDestinationAccount(acc)}
+                        key={acc.id}
+                        onPress={() => setSelectedIncomeAccountId(acc.id)}
                         style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
                       >
                         <Text
@@ -349,7 +430,7 @@ export default function NewTransactionScreen() {
                             active ? styles.chipLabelActive : styles.chipLabelInactive,
                           ]}
                         >
-                          {acc}
+                          {acc.name}
                         </Text>
                       </Pressable>
                     )
@@ -392,12 +473,13 @@ export default function NewTransactionScreen() {
               <View style={styles.fieldGroup}>
                 <Text style={styles.fieldLabel}>Origem</Text>
                 <View style={styles.chipsRow}>
-                  {['Conta Itaú', 'Conta Inter', 'Carteira'].map((acc) => {
-                    const active = originAccount === acc
+                  {availableAccounts.map((acc) => {
+                    const active =
+                      (selectedOriginAccountId ?? availableAccounts[0]?.id) === acc.id
                     return (
                       <Pressable
-                        key={acc}
-                        onPress={() => setOriginAccount(acc)}
+                        key={acc.id}
+                        onPress={() => setSelectedOriginAccountId(acc.id)}
                         style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
                       >
                         <Text
@@ -406,7 +488,7 @@ export default function NewTransactionScreen() {
                             active ? styles.chipLabelActive : styles.chipLabelInactive,
                           ]}
                         >
-                          {acc}
+                          {acc.name}
                         </Text>
                       </Pressable>
                     )
@@ -418,12 +500,16 @@ export default function NewTransactionScreen() {
               <View style={styles.fieldGroup}>
                 <Text style={styles.fieldLabel}>Destino</Text>
                 <View style={styles.chipsRow}>
-                  {['Conta Inter', 'Conta Itaú', 'Carteira'].map((acc) => {
-                    const active = destinationAccount === acc
+                  {availableAccounts.map((acc) => {
+                    const defaultDestId =
+                      availableAccounts.find(
+                        (a) => a.id !== (selectedOriginAccountId ?? availableAccounts[0]?.id)
+                      )?.id ?? availableAccounts[1]?.id
+                    const active = (selectedDestAccountId ?? defaultDestId) === acc.id
                     return (
                       <Pressable
-                        key={acc}
-                        onPress={() => setDestinationAccount(acc)}
+                        key={acc.id}
+                        onPress={() => setSelectedDestAccountId(acc.id)}
                         style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
                       >
                         <Text
@@ -432,7 +518,7 @@ export default function NewTransactionScreen() {
                             active ? styles.chipLabelActive : styles.chipLabelInactive,
                           ]}
                         >
-                          {acc}
+                          {acc.name}
                         </Text>
                       </Pressable>
                     )
@@ -467,18 +553,24 @@ export default function NewTransactionScreen() {
                 : 'Salvar Transferência'
             }
             onPress={handleSave}
-            disabled={loading}
-            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+            disabled={mutation.isPending}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed && styles.pressed,
+              mutation.isPending && styles.buttonDisabled,
+            ]}
           >
-            <Text style={styles.primaryButtonText}>
-              {loading
-                ? 'Salvando...'
-                : kind === 'expense'
-                ? 'Salvar despesa'
-                : kind === 'income'
-                ? 'Salvar receita'
-                : 'Salvar Transferência'}
-            </Text>
+            {mutation.isPending ? (
+              <ActivityIndicator color={darkTheme.background} size="small" />
+            ) : (
+              <Text style={styles.primaryButtonText}>
+                {kind === 'expense'
+                  ? 'Salvar despesa'
+                  : kind === 'income'
+                  ? 'Salvar receita'
+                  : 'Salvar Transferência'}
+              </Text>
+            )}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -651,6 +743,9 @@ const styles = StyleSheet.create({
     backgroundColor: darkTheme.primary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   primaryButtonText: {
     fontSize: 15,

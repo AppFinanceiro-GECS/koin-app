@@ -87,10 +87,22 @@ export interface TransactionCreate {
   amount: number | string
   date: string
   account_id: number
+  destination_account_id?: number
+  credit_card_id?: number | null
   category_id?: number | null
   description?: string
   payment_method?: PaymentMethod | null
-  destination_account_id?: number
+  merchant_name?: string | null
+  notes?: string | null
+  tags?: string[] | null
+  ownership_type?: 'personal' | 'family' | string
+  is_fixed?: boolean
+  is_installment?: boolean
+  installment_current?: number | null
+  installment_total?: number | null
+  create_future_installments?: boolean
+  invoice_month?: number | null
+  invoice_year?: number | null
 }
 
 export interface Paginated<T> {
@@ -200,6 +212,94 @@ export interface FamilyInviteResponse {
   expires_at: string
 }
 
+export type DocumentStage =
+  | 'received'
+  | 'extracting'
+  | 'validating'
+  | 'done'
+  | 'waiting'
+  | 'failed'
+
+export type DocumentStatus =
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'duplicate'
+  | 'waiting_ai'
+
+export interface ExtractedItem {
+  description: string
+  amount: number
+  date?: string | null
+  category?: string | null
+  confidence?: number
+  transaction_type?: string | null
+  is_installment?: boolean
+  installment_current?: number | null
+  installment_total?: number | null
+  is_duplicate?: boolean
+  existing_transaction_id?: number | null
+  quantity?: number | null
+  unit?: string | null
+  unit_price?: number | null
+  grocery_category?: string | null
+}
+
+export interface CardInfo {
+  card_issuer?: string | null
+  card_bank?: string | null
+  card_brand?: string | null
+  card_partner?: string | null
+  card_last_digits?: string | null
+  card_name?: string | null
+  invoice_month?: number | null
+  invoice_year?: number | null
+  closing_date?: string | null
+  closing_day?: number | null
+  due_date?: string | null
+  due_day?: number | null
+  total_amount?: number | null
+  credit_limit?: number | null
+  credit_used?: number | null
+  credit_available?: number | null
+}
+
+export interface PaymentInfo {
+  total?: number | null
+  subtotal?: number | null
+  discount?: number | null
+  store_name?: string | null
+  store_cnpj?: string | null
+  payments?: { method: string; amount: number; label: string; sequence: number }[]
+}
+
+export interface DocumentResponse {
+  id: number
+  file_hash: string
+  original_filename: string
+  mime_type: string
+  status: DocumentStatus
+  document_type: 'fatura_cartao' | 'cupom_fiscal' | 'extrato' | string | null
+  error_message: string | null
+  error_code?: string | null
+  next_retry_at?: string | null
+  stage?: DocumentStage | null
+  created_at: string
+  processed_at: string | null
+  extracted_items: ExtractedItem[]
+  is_duplicate: boolean
+  card_info?: CardInfo | null
+  payment_info?: PaymentInfo | null
+}
+
+export interface DocumentAsyncUploadResponse {
+  id: number
+  status: DocumentStatus
+  message: string
+  stage: DocumentStage
+}
+
 export interface DocumentSummary {
   id: number
   original_filename: string
@@ -208,4 +308,18 @@ export interface DocumentSummary {
   document_type: string | null
   created_at: string
   processed_at: string | null
+}
+
+export interface DeviceRegister {
+  expo_push_token: string
+  platform: 'ios' | 'android' | 'web'
+  app_version?: string
+}
+
+export interface DeviceResponse {
+  id: number
+  expo_push_token: string
+  platform: string
+  app_version: string | null
+  last_used_at: string
 }

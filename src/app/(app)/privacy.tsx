@@ -1,11 +1,23 @@
+import { useMutation } from '@tanstack/react-query'
 import { router } from 'expo-router'
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { IconTile } from '@/components/IconTile'
 import { ScreenHeader } from '@/components/ScreenHeader'
 import { Tag } from '@/components/Tag'
 import { LEGAL_LINKS } from '@/lib/config'
+import { getApiErrorMessage } from '@/lib/errors'
+import { authApi } from '@/services/auth.api'
 import { useAuthStore } from '@/stores/authStore'
 import { darkTheme } from '@/theme/colors'
 
@@ -36,6 +48,22 @@ function LinkRow({ label, action, url }: LinkRowProps) {
 export default function PrivacyScreen() {
   const user = useAuthStore((s) => s.user)
 
+  const exportMutation = useMutation({
+    mutationFn: () => authApi.exportData(),
+    onSuccess: (res) => {
+      const data = res.data as { accounts?: unknown[]; transactions?: unknown[]; user?: { email?: string } }
+      const accountsCount = Array.isArray(data?.accounts) ? data.accounts.length : 0
+      const txCount = Array.isArray(data?.transactions) ? data.transactions.length : 0
+      Alert.alert(
+        'Exportação Concluída',
+        `Seus dados foram extraídos com sucesso conforme a LGPD.\n\nContas: ${accountsCount}\nTransações: ${txCount}\nUsuário: ${data?.user?.email || user?.email || 'Você'}`
+      )
+    },
+    onError: (err) => {
+      Alert.alert('Erro', getApiErrorMessage(err, 'Não foi possível exportar seus dados.'))
+    },
+  })
+
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
       <ScreenHeader title="Privacidade e dados" />
@@ -60,13 +88,32 @@ export default function PrivacyScreen() {
           <Text style={styles.cardText}>
             Solicite uma cópia dos seus registros ou revise a exclusão da sua conta.
           </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/delete-account')}
-            style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.secondaryButtonText}>Excluir minha conta</Text>
-          </Pressable>
+          <View style={styles.actionButtons}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={exportMutation.isPending}
+              onPress={() => exportMutation.mutate()}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                pressed && styles.pressed,
+                exportMutation.isPending && styles.buttonDisabled,
+              ]}
+            >
+              {exportMutation.isPending ? (
+                <ActivityIndicator color={darkTheme.background} size="small" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Exportar meus dados (LGPD)</Text>
+              )}
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/delete-account')}
+              style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.secondaryButtonText}>Excluir minha conta</Text>
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -128,6 +175,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: darkTheme.textSecondary,
+  },
+  actionButtons: {
+    gap: 8,
+    marginTop: 4,
+  },
+  primaryButton: {
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: darkTheme.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: darkTheme.background,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   secondaryButton: {
     height: 48,

@@ -1,5 +1,10 @@
 import api from './api'
-import type { DocumentSummary, InvoiceOverview } from '../types/api'
+import type {
+  DocumentAsyncUploadResponse,
+  DocumentResponse,
+  DocumentSummary,
+  InvoiceOverview,
+} from '../types/api'
 
 /** Arquivo local no formato que o FormData do React Native aceita (ex.: resultado do expo-document-picker). */
 export interface UploadFile {
@@ -17,7 +22,7 @@ export const documentsApi = {
     appendFile(formData, 'file', file)
     if (password) formData.append('password', password)
     if (creditCardId) formData.append('credit_card_id', creditCardId.toString())
-    return api.post('/documents', formData, {
+    return api.post<DocumentResponse>('/documents', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
@@ -27,7 +32,7 @@ export const documentsApi = {
     appendFile(formData, 'file', file)
     if (password) formData.append('password', password)
     if (creditCardId) formData.append('credit_card_id', creditCardId.toString())
-    return api.post('/documents/async', formData, {
+    return api.post<DocumentAsyncUploadResponse>('/documents/async', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
@@ -38,8 +43,8 @@ export const documentsApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
-  list: () => api.get('/documents'),
-  get: (id: number) => api.get<DocumentSummary>(`/documents/${id}`),
+  list: () => api.get<DocumentSummary[]>('/documents'),
+  get: (id: number) => api.get<DocumentResponse>(`/documents/${id}`),
 }
 
 export const invoicesApi = {

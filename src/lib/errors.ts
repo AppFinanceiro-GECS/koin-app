@@ -13,7 +13,17 @@ const errorMessages: Record<string, string> = {
 }
 
 type ErrorLike = {
-  response?: { data?: { detail?: unknown }; status?: number }
+  response?: {
+    data?: {
+      detail?: unknown
+      title?: string
+      message?: string
+      errors?: (string | { msg?: string; message?: string })[]
+      code?: string
+      request_id?: string
+    }
+    status?: number
+  }
   message?: string
   code?: string
 }
@@ -31,7 +41,19 @@ export function getApiErrorMessage(error: unknown, defaultMessage: string): stri
     return defaultMessage
   }
 
-  const detail = err.response.data?.detail
+  const data = err.response.data
+
+  // RFC 9457 / Problem details: errors list
+  if (Array.isArray(data?.errors) && data.errors.length > 0) {
+    const first = data.errors[0]
+    if (typeof first === 'string') return errorMessages[first] || first
+    if (first && typeof first === 'object') {
+      const msg = first.msg || first.message
+      if (msg) return errorMessages[msg] || msg
+    }
+  }
+
+  const detail = data?.detail
 
   if (typeof detail === 'string') return errorMessages[detail] || detail
 
@@ -43,6 +65,14 @@ export function getApiErrorMessage(error: unknown, defaultMessage: string): stri
 
   if (Array.isArray(detail) && detail[0]?.msg) {
     return errorMessages[detail[0].msg] || detail[0].msg
+  }
+
+  if (typeof data?.message === 'string' && data.message.trim()) {
+    return errorMessages[data.message] || data.message
+  }
+
+  if (typeof data?.title === 'string' && data.title.trim()) {
+    return data.title
   }
 
   const status = err.response.status
