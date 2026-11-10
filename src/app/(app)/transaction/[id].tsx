@@ -19,103 +19,6 @@ import { creditCardsApi } from '@/services/accounts.api'
 import { transactionsApi } from '@/services/transactions.api'
 import { darkTheme } from '@/theme/colors'
 
-// Mock details mapped by ID (with fallback to 102/Mercado Extra design)
-const MOCK_DETAILS_MAP: Record<string, {
-  title: string
-  amount: number
-  category: string
-  tag: string
-  paymentMethod: string
-  invoiceMonth: string
-  invoiceExplanation: string
-  timeline: { date: string; label: string; active?: boolean }[]
-  splitWith: string
-  yourShare: string
-  icon: keyof typeof Ionicons.glyphMap
-}> = {
-  '101': {
-    title: 'Fone de ouvido',
-    amount: 600,
-    category: 'Eletrônicos',
-    tag: 'Pessoal',
-    paymentMethod: 'Nubank, 3x de R$ 200',
-    invoiceMonth: 'Fatura de novembro',
-    invoiceExplanation: 'A compra parcelada foi realizada em 01/10 e a 1ª parcela de R$ 200,00 entra na fatura de novembro.',
-    timeline: [
-      { date: '24/09', label: 'Fatura de outubro fecha' },
-      { date: '01/10', label: 'Você faz a compra (1ª parcela)', active: true },
-      { date: '04/11', label: 'Fatura de novembro vence' },
-    ],
-    splitWith: 'Individual',
-    yourShare: 'R$ 600,00',
-    icon: 'headset-outline',
-  },
-  '102': {
-    title: 'Mercado Extra',
-    amount: 450,
-    category: 'Alimentação',
-    tag: 'Família',
-    paymentMethod: 'Nubank, à vista',
-    invoiceMonth: 'Fatura de novembro',
-    invoiceExplanation: 'A compra foi feita em 25/09, um dia depois do fechamento da fatura de outubro. Por isso ela entra na fatura de novembro.',
-    timeline: [
-      { date: '24/09', label: 'Fatura de outubro fecha' },
-      { date: '25/09', label: 'Você faz a compra', active: true },
-      { date: '04/11', label: 'Fatura de novembro vence' },
-    ],
-    splitWith: 'Família (3 pessoas)',
-    yourShare: 'R$ 150,00',
-    icon: 'cart-outline',
-  },
-  '103': {
-    title: 'Netflix',
-    amount: 55.9,
-    category: 'Assinaturas',
-    tag: 'Família',
-    paymentMethod: 'Nubank, débito automático',
-    invoiceMonth: 'Fatura de outubro',
-    invoiceExplanation: 'Assinatura recorrente cobrada mensalmente no cartão Nubank.',
-    timeline: [
-      { date: '15/09', label: 'Cobrança da assinatura', active: true },
-      { date: '24/09', label: 'Fatura fecha' },
-      { date: '04/10', label: 'Fatura vence' },
-    ],
-    splitWith: 'Família (4 pessoas)',
-    yourShare: 'R$ 13,97',
-    icon: 'repeat-outline',
-  },
-  '104': {
-    title: 'Salário',
-    amount: 6500,
-    category: 'Receita',
-    tag: 'Trabalho',
-    paymentMethod: 'Conta Itaú',
-    invoiceMonth: 'Conta corrente',
-    invoiceExplanation: 'Depósito em conta corrente referente a proventos de trabalho.',
-    timeline: [
-      { date: '05/09', label: 'Crédito em conta corrente', active: true },
-    ],
-    splitWith: 'Individual',
-    yourShare: 'R$ 6.500,00',
-    icon: 'wallet-outline',
-  },
-  '105': {
-    title: 'Pagamento da fatura Nubank',
-    amount: 2100,
-    category: 'Pagamento',
-    tag: 'Fora do resumo',
-    paymentMethod: 'Itaú, TED/PIX',
-    invoiceMonth: 'Fatura de setembro liquidada',
-    invoiceExplanation: 'Pagamento do saldo total da fatura anterior para liberação do limite.',
-    timeline: [
-      { date: '05/09', label: 'Pagamento efetuado e liquidado', active: true },
-    ],
-    splitWith: 'Individual',
-    yourShare: 'R$ 2.100,00',
-    icon: 'card-outline',
-  },
-}
-
 export default function TransactionDetailScreen() {
   const insets = useSafeAreaInsets()
   const { id } = useLocalSearchParams<{ id: string }>()
@@ -201,23 +104,8 @@ export default function TransactionDetailScreen() {
       }
     }
 
-    // Fallback to Figma mock matching the id or default to Mercado Extra (102)
-    const mock = (id && MOCK_DETAILS_MAP[id]) || MOCK_DETAILS_MAP['102']
-    return {
-      title: mock.title,
-      amount: mock.amount,
-      formattedAmount: formatCurrency(mock.amount),
-      category: mock.category,
-      tag: mock.tag,
-      paymentMethod: mock.paymentMethod,
-      invoiceMonth: mock.invoiceMonth,
-      invoiceExplanation: mock.invoiceExplanation,
-      timeline: mock.timeline,
-      splitWith: mock.splitWith,
-      yourShare: mock.yourShare,
-      icon: mock.icon,
-    }
-  }, [apiData, cardData, id])
+    return null
+  }, [apiData, cardData])
 
   const handleDelete = () => {
     Alert.alert(
@@ -252,27 +140,39 @@ export default function TransactionDetailScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {isLoading && isNumeric ? (
-          <ActivityIndicator style={styles.loader} color={darkTheme.accent} />
-        ) : null}
-
-        {/* 1. Hero Card Linear Gradient */}
-        <LinearGradient
-          colors={['#0f0b1e', '#1f0c3b', '#0a0414']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.heroCard}
+      {isLoading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={darkTheme.accent} />
+        </View>
+      ) : !transactionData ? (
+        <View style={styles.center}>
+          <Ionicons name="alert-circle-outline" size={48} color={darkTheme.textMuted} />
+          <Text style={styles.errorText}>Transação não encontrada</Text>
+          <Pressable
+            style={({ pressed }) => [styles.secondaryBtn, pressed && styles.btnPressed, { marginTop: 16 }]}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.secondaryBtnText}>Voltar</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
+          showsVerticalScrollIndicator={false}
         >
-          <View style={styles.categoryIconBox}>
-            <Ionicons name={transactionData.icon} size={28} color="#a78bfa" />
-          </View>
+          {/* 1. Hero Card Linear Gradient */}
+          <LinearGradient
+            colors={['#0f0b1e', '#1f0c3b', '#0a0414']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroCard}
+          >
+            <View style={styles.categoryIconBox}>
+              <Ionicons name={transactionData.icon} size={28} color="#a78bfa" />
+            </View>
 
-          <Text style={styles.heroTitle}>{transactionData.title}</Text>
-          <Text style={styles.heroAmount}>{transactionData.formattedAmount}</Text>
+            <Text style={styles.heroTitle}>{transactionData.title}</Text>
+            <Text style={styles.heroAmount}>{transactionData.formattedAmount}</Text>
 
           {/* Chips */}
           <View style={styles.chipsRow}>
@@ -362,6 +262,7 @@ export default function TransactionDetailScreen() {
           )}
         </Pressable>
       </ScrollView>
+      )}
     </View>
   )
 }
@@ -622,5 +523,18 @@ const styles = StyleSheet.create({
   },
   btnPressed: {
     opacity: 0.75,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 24,
+  },
+  errorText: {
+    fontSize: 16,
+    fontFamily: 'Sora',
+    color: darkTheme.textMuted,
+    textAlign: 'center',
   },
 })

@@ -17,6 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { formatCurrency } from '@/lib/format'
 import { accountsApi, creditCardsApi } from '@/services/accounts.api'
+import { transactionsApi } from '@/services/transactions.api'
+import { useAuthStore } from '@/stores/authStore'
 import { darkTheme } from '@/theme/colors'
 
 interface AccountItem {
@@ -28,8 +30,9 @@ interface AccountItem {
 }
 
 export default function AccountsScreen() {
+  const user = useAuthStore((s) => s.user)
   const [activeTab, setActiveTab] = useState<'cards' | 'accounts'>('cards')
-  const [selectedAccountId, setSelectedAccountId] = useState<string | number>('itau')
+  const [selectedAccountId, setSelectedAccountId] = useState<string | number | null>(null)
 
   const accountsQuery = useQuery({
     queryKey: ['accounts'],
@@ -41,30 +44,39 @@ export default function AccountsScreen() {
     queryFn: async () => (await creditCardsApi.list()).data,
   })
 
-  const refreshing = accountsQuery.isRefetching || cardsQuery.isRefetching
-  const onRefresh = () => {
-    accountsQuery.refetch()
-    cardsQuery.refetch()
-  }
-
-  const defaultAccounts: AccountItem[] = [
-    { id: 'itau', name: 'Conta Itaú', type: 'Conta corrente', balance: 4200, shared: true },
-    { id: 'inter', name: 'Conta Inter', type: 'Conta corrente', balance: 950, shared: false },
-  ]
-
   const accountsList: AccountItem[] =
     accountsQuery.data && accountsQuery.data.length > 0
       ? accountsQuery.data.map((a) => ({
           id: a.id,
           name: a.name,
-          type: a.type === 'bank' ? 'Conta corrente' : a.type,
-          balance: a.balance,
+          type: a.type === 'bank' ? 'Conta corrente' : a.type === 'wallet' ? 'Carteira' : a.type,
+          balance: Number(a.balance) || 0,
           shared: a.ownership_type === 'household',
         }))
-      : defaultAccounts
+      : []
 
   const selectedAccount =
     accountsList.find((a) => String(a.id) === String(selectedAccountId)) ?? accountsList[0]
+
+  const accountTxQuery = useQuery({
+    queryKey: ['transactions', 'account', selectedAccount?.id],
+    queryFn: async () => {
+      if (!selectedAccount?.id) return []
+      const res = await transactionsApi.list({ account_id: Number(selectedAccount.id), limit: 5 })
+      return res.data.items || []
+    },
+    enabled: Boolean(selectedAccount?.id),
+  })
+
+  const refreshing =
+    accountsQuery.isRefetching ||
+    cardsQuery.isRefetching ||
+    accountTxQuery.isRefetching
+  const onRefresh = () => {
+    accountsQuery.refetch()
+    cardsQuery.refetch()
+    accountTxQuery.refetch()
+  }
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
@@ -158,7 +170,12 @@ export default function AccountsScreen() {
                 return (
                   <Pressable
                     key={String(card.id)}
-                    onPress={() => router.push(`/credit-card/${card.id}/invoice` as any)}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/invoices',
+                        params: { creditCardId: String(card.id), creditCardName: card.name },
+                      } as any)
+                    }
                     style={({ pressed }) => [pressed && styles.buttonPressed, { marginBottom: 14 }]}
                   >
                     <LinearGradient
@@ -205,115 +222,20 @@ export default function AccountsScreen() {
                 )
               })
             ) : (
-              <>
-                {/* Cartão Nubank final 4821 */}
+              <View style={styles.emptyCardBox}>
+                <Feather name="credit-card" size={32} color={darkTheme.textSecondary} />
+                <Text style={styles.emptyCardTitle}>Nenhum cartão cadastrado</Text>
+                <Text style={styles.emptyCardSubtitle}>
+                  Cadastre seus cartões de crédito para acompanhar limites, fechamentos e faturas.
+                </Text>
                 <Pressable
-                  onPress={() => router.push('/credit-card/nubank/invoice' as any)}
-                  style={({ pressed }) => [pressed && styles.buttonPressed]}
+                  accessibilityRole="button"
+                  onPress={() => router.push('/credit-card/modal')}
+                  style={({ pressed }) => [styles.emptyAddButton, pressed && styles.buttonPressed]}
                 >
-                  <LinearGradient
-                    colors={['#0f0b1e', '#1f0c3b', '#0a0414']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.cardGradient}
-                  >
-                    <View style={styles.cardHeaderRow}>
-                      <View style={styles.cardHeader}>
-                        <Text style={styles.cardTitle}>Nubank final 4821</Text>
-                        <Text style={styles.cardSubtitle}>Fecha dia 24, vence dia 04</Text>
-                      </View>
-                      <Pressable
-                        onPress={(e) => {
-                          e.stopPropagation()
-                          router.push({
-                            pathname: '/credit-card/modal',
-                            params: {
-                              id: 'nubank',
-                              name: 'Nubank',
-                              digits: '4821',
-                              limit: '8000',
-                              closingDay: '24',
-                              dueDay: '04',
-                            },
-                          })
-                        }}
-                        style={styles.editButton}
-                      >
-                        <Ionicons name="pencil" size={16} color="#a855f7" />
-                      </Pressable>
-                    </View>
-
-                    {/* Fatura de outubro */}
-                    <View style={styles.invoiceRow}>
-                      <View style={styles.invoiceCol}>
-                        <Text style={styles.invoiceLabel}>Fatura de outubro</Text>
-                        <Text style={styles.statusBadgePurple}>Fechada • vence 04/10</Text>
-                      </View>
-                      <Text style={styles.invoiceValue}>R$ 2.380,00</Text>
-                    </View>
-
-                    {/* Fatura de novembro */}
-                    <View style={styles.invoiceRow}>
-                      <View style={styles.invoiceCol}>
-                        <Text style={styles.invoiceLabel}>Fatura de novembro</Text>
-                        <Text style={styles.statusBadgeMuted}>Aberta • fecha 24/10</Text>
-                      </View>
-                      <Text style={styles.invoiceValue}>R$ 1.495,90</Text>
-                    </View>
-
-                    {/* Barra de Limite */}
-                    <View style={styles.progressSection}>
-                      <View style={styles.progressTrack}>
-                        <View style={[styles.progressFill, { width: '48.5%' }]} />
-                      </View>
-                      <Text style={styles.limitText}>
-                        Limite disponível: R$ 4.124,10 de R$ 8.000,00
-                      </Text>
-                    </View>
-                  </LinearGradient>
+                  <Text style={styles.emptyAddButtonText}>Cadastrar novo cartão</Text>
                 </Pressable>
-
-                {/* Cartão Inter final 1190 */}
-                <Pressable
-                  onPress={() => router.push('/credit-card/inter/invoice' as any)}
-                  style={({ pressed }) => [pressed && styles.buttonPressed]}
-                >
-                  <View style={styles.darkCard}>
-                    <View style={styles.cardHeaderRow}>
-                      <View style={styles.cardHeader}>
-                        <Text style={styles.cardTitle}>Inter final 1190</Text>
-                        <Text style={styles.cardSubtitle}>Fecha dia 28, vence dia 07</Text>
-                      </View>
-                      <Pressable
-                        onPress={(e) => {
-                          e.stopPropagation()
-                          router.push('/credit-card/modal' as any)
-                        }}
-                        style={styles.editButton}
-                      >
-                        <Ionicons name="pencil" size={16} color="#a855f7" />
-                      </Pressable>
-                    </View>
-
-                  <View style={styles.invoiceRow}>
-                    <View style={styles.invoiceCol}>
-                      <Text style={styles.invoiceLabel}>Fatura de outubro</Text>
-                      <Text style={styles.statusBadgeYellow}>Estimada • PDF pendente</Text>
-                    </View>
-                    <Text style={styles.invoiceValue}>R$ 1.150,40</Text>
-                  </View>
-
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Enviar PDF da fatura"
-                      onPress={() => router.push('/invoice/import' as any)}
-                      style={({ pressed }) => [styles.actionButton, pressed && styles.buttonPressed]}
-                    >
-                      <Text style={styles.actionButtonText}>Enviar PDF da fatura</Text>
-                    </Pressable>
-                  </View>
-                </Pressable>
-              </>
+              </View>
             )}
 
             {/* Resumo de Contas no final da aba Cartões */}
@@ -365,121 +287,144 @@ export default function AccountsScreen() {
         ) : (
           /* ======================= ABA CONTAS ======================= */
           <View style={styles.sectionGap}>
-            {/* Seletor de Contas */}
-            {accountsList.map((acc) => {
-              const isSelected = String(acc.id) === String(selectedAccount.id)
-              return (
+            {accountsList.length === 0 ? (
+              <View style={styles.emptyCardBox}>
+                <Feather name="credit-card" size={32} color={darkTheme.textSecondary} />
+                <Text style={styles.emptyCardTitle}>Nenhuma conta cadastrada</Text>
+                <Text style={styles.emptyCardSubtitle}>
+                  Cadastre contas bancárias ou carteiras para acompanhar seus saldos e movimentações.
+                </Text>
                 <Pressable
-                  key={String(acc.id)}
-                  onPress={() => setSelectedAccountId(acc.id)}
-                  style={[
-                    styles.accountSelectorCard,
-                    isSelected
-                      ? styles.accountSelectorActive
-                      : styles.accountSelectorInactive,
-                  ]}
+                  accessibilityRole="button"
+                  onPress={() => router.push('/account/modal')}
+                  style={({ pressed }) => [styles.emptyAddButton, pressed && styles.buttonPressed]}
                 >
-                  <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
-                    {isSelected && <View style={styles.radioInner} />}
-                  </View>
-                  <View style={styles.accountInfo}>
-                    <Text style={styles.accountName}>{acc.name}</Text>
-                    <Text style={styles.accountType}>
-                      {acc.type} · {formatCurrency(acc.balance)}
-                    </Text>
-                  </View>
+                  <Text style={styles.emptyAddButtonText}>Cadastrar nova conta</Text>
                 </Pressable>
-              )
-            })}
-
-            {/* Cartão de Resumo Gradiente da Conta Selecionada */}
-            <LinearGradient
-              colors={['#0f0b1e', '#1f0c3b', '#0a0414']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.cardGradient}
-            >
-              <Text style={styles.cardSubtitle}>
-                Saldo registrado · {selectedAccount.name}
-              </Text>
-              <Text style={styles.bigBalance}>
-                {formatCurrency(selectedAccount.balance)}
-              </Text>
-              <Text style={styles.accountOwner}>
-                Pedro Andrade · sem sincronização bancária
-              </Text>
-            </LinearGradient>
-
-            {/* Informações de Família e Ação de Edição */}
-            <View style={styles.darkCard}>
-              <View style={styles.badgeWrapper}>
-                <View style={styles.familyBadge}>
-                  <Text style={styles.familyBadgeText}>
-                    Compartilhada · Família Andrade
-                  </Text>
-                </View>
               </View>
+            ) : (
+              <>
+                {/* Seletor de Contas */}
+                {accountsList.map((acc) => {
+                  const isSelected = selectedAccount && String(acc.id) === String(selectedAccount.id)
+                  return (
+                    <Pressable
+                      key={String(acc.id)}
+                      onPress={() => setSelectedAccountId(acc.id)}
+                      style={[
+                        styles.accountSelectorCard,
+                        isSelected
+                          ? styles.accountSelectorActive
+                          : styles.accountSelectorInactive,
+                      ]}
+                    >
+                      <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
+                        {isSelected && <View style={styles.radioInner} />}
+                      </View>
+                      <View style={styles.accountInfo}>
+                        <Text style={styles.accountName}>{acc.name}</Text>
+                        <Text style={styles.accountType}>
+                          {acc.type} · {formatCurrency(acc.balance)}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  )
+                })}
 
-              <Text style={styles.familyDescription}>
-                Marina (admin), Pedro e Lucas veem o que foi compartilhado.
-              </Text>
+                {selectedAccount && (
+                  <>
+                    {/* Cartão de Resumo Gradiente da Conta Selecionada */}
+                    <LinearGradient
+                      colors={['#0f0b1e', '#1f0c3b', '#0a0414']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.cardGradient}
+                    >
+                      <Text style={styles.cardSubtitle}>
+                        Saldo registrado · {selectedAccount.name}
+                      </Text>
+                      <Text style={styles.bigBalance}>
+                        {formatCurrency(selectedAccount.balance)}
+                      </Text>
+                      <Text style={styles.accountOwner}>
+                        {user?.name || 'Você'} · sem sincronização bancária
+                      </Text>
+                    </LinearGradient>
 
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Editar ${selectedAccount.name}`}
-                onPress={() =>
-                  router.push({
-                    pathname: '/account/modal',
-                    params: {
-                      id: String(selectedAccount.id),
-                      name: selectedAccount.name,
-                      balance: String(selectedAccount.balance),
-                    },
-                  })
-                }
-                style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
-              >
-                <Text style={styles.secondaryButtonText}>
-                  Editar conta {selectedAccount.name.replace('Conta ', '')}
-                </Text>
-              </Pressable>
-            </View>
+                    {/* Informações de Família e Ação de Edição */}
+                    <View style={styles.darkCard}>
+                      <View style={styles.badgeWrapper}>
+                        <View style={styles.familyBadge}>
+                          <Text style={styles.familyBadgeText}>
+                            {selectedAccount.shared ? 'Conta Compartilhada · Família' : 'Conta Individual · Pessoal'}
+                          </Text>
+                        </View>
+                      </View>
 
-            {/* Seção: Últimos registros */}
-            <View style={styles.sectionHeaderCol}>
-              <Text style={styles.sectionTitle}>Últimos registros</Text>
+                      <Text style={styles.familyDescription}>
+                        {selectedAccount.shared
+                          ? 'Transações desta conta são compartilhadas com o grupo familiar.'
+                          : 'Apenas você visualiza as transações vinculadas a esta conta.'}
+                      </Text>
 
-              <View style={styles.darkCard}>
-                {/* Registro 1: Salário */}
-                <View style={styles.txRow}>
-                  <Text style={styles.txTitle}>Salário · 01/10</Text>
-                  <Text style={styles.incomeValue}>+ R$ 6.500,00</Text>
-                </View>
-
-                <View style={styles.divider} />
-
-                {/* Registro 2: Aluguel */}
-                <View style={styles.txRow}>
-                  <View style={styles.accountIconWrapper}>
-                    <Feather name="shopping-bag" size={18} color={darkTheme.accent} />
-                  </View>
-                  <View style={styles.accountInfo}>
-                    <Text style={styles.txTitle}>Aluguel</Text>
-                    <Text style={styles.txSubtitle}>01/10 · Moradia · Itaú</Text>
-                  </View>
-                  <View style={styles.amountCol}>
-                    <Text style={styles.expenseValue}>R$ 1.400,00</Text>
-                    <View style={styles.personalBadge}>
-                      <Text style={styles.personalBadgeText}>Registro pessoal</Text>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Editar ${selectedAccount.name}`}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/account/modal',
+                            params: {
+                              id: String(selectedAccount.id),
+                              name: selectedAccount.name,
+                              balance: String(selectedAccount.balance),
+                            },
+                          })
+                        }
+                        style={({ pressed }) => [styles.secondaryButton, pressed && styles.buttonPressed]}
+                      >
+                        <Text style={styles.secondaryButtonText}>
+                          Editar conta {selectedAccount.name.replace('Conta ', '')}
+                        </Text>
+                      </Pressable>
                     </View>
-                  </View>
-                </View>
 
-                <Text style={styles.consolidatedNote}>
-                  Saldo consolidado inclui registros anteriores. Não é um extrato bancário.
-                </Text>
-              </View>
-            </View>
+                    {/* Seção: Últimos registros da conta selecionada */}
+                    <View style={styles.sectionHeaderCol}>
+                      <Text style={styles.sectionTitle}>Últimos registros</Text>
+
+                      <View style={styles.darkCard}>
+                        {accountTxQuery.data && accountTxQuery.data.length > 0 ? (
+                          accountTxQuery.data.map((tx: any, idx: number) => {
+                            const isIncome = tx.type === 'income'
+                            const sign = isIncome ? '+ ' : '– '
+                            return (
+                              <View key={String(tx.id)}>
+                                {idx > 0 && <View style={styles.divider} />}
+                                <View style={styles.txRow}>
+                                  <View style={styles.accountInfo}>
+                                    <Text style={styles.txTitle}>{tx.description || 'Lançamento'}</Text>
+                                    <Text style={styles.txSubtitle}>{tx.date} · {tx.category_name || 'Geral'}</Text>
+                                  </View>
+                                  <Text style={isIncome ? styles.incomeValue : styles.expenseValue}>
+                                    {sign}{formatCurrency(Number(tx.amount) || 0)}
+                                  </Text>
+                                </View>
+                              </View>
+                            )
+                          })
+                        ) : (
+                          <Text style={styles.emptyTxText}>Nenhuma movimentação registrada nesta conta.</Text>
+                        )}
+
+                        <Text style={styles.consolidatedNote}>
+                          Saldo consolidado no Koin. Não é um extrato bancário oficial.
+                        </Text>
+                      </View>
+                    </View>
+                  </>
+                )}
+              </>
+            )}
 
             {/* Botões de Ação na aba Contas */}
             <View style={styles.actionsBottomRow}>
@@ -899,5 +844,46 @@ const styles = StyleSheet.create({
     color: darkTheme.textSecondary,
     marginTop: 6,
     lineHeight: 16,
+  },
+  emptyCardBox: {
+    backgroundColor: darkTheme.surface,
+    borderWidth: 1,
+    borderColor: darkTheme.border,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginVertical: 4,
+  },
+  emptyCardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: darkTheme.text,
+    textAlign: 'center',
+  },
+  emptyCardSubtitle: {
+    fontSize: 13,
+    color: darkTheme.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  emptyAddButton: {
+    backgroundColor: darkTheme.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  emptyAddButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  emptyTxText: {
+    fontSize: 13,
+    color: darkTheme.textSecondary,
+    paddingVertical: 10,
+    textAlign: 'center',
   },
 })

@@ -34,63 +34,6 @@ interface DisplayTransaction {
   iconName: keyof typeof Ionicons.glyphMap
 }
 
-const FIGMA_MOCK_ITEMS: DisplayTransaction[] = [
-  {
-    id: 101,
-    title: 'Fone de ouvido',
-    subtitle: 'Eletrônicos, Nubank • 3x de R$ 200',
-    amount: 600,
-    isIncome: false,
-    formattedAmount: '– R$ 600,00',
-    dateGroup: '1º de outubro',
-    badge: 'Novo • Fatura nov',
-    iconName: 'headset-outline',
-  },
-  {
-    id: 102,
-    title: 'Mercado Extra',
-    subtitle: 'Alimentação, Nubank',
-    amount: 450,
-    isIncome: false,
-    formattedAmount: '– R$ 450,00',
-    dateGroup: '25 de setembro',
-    badge: 'Família • Fatura nov',
-    iconName: 'cart-outline',
-  },
-  {
-    id: 103,
-    title: 'Netflix',
-    subtitle: 'Assinaturas, Nubank',
-    amount: 55.9,
-    isIncome: false,
-    formattedAmount: '– R$ 55,90',
-    dateGroup: '15 de setembro',
-    badge: 'Assinatura • Família',
-    iconName: 'repeat-outline',
-  },
-  {
-    id: 104,
-    title: 'Salário',
-    subtitle: 'Receita, Conta Itaú',
-    amount: 6500,
-    isIncome: true,
-    formattedAmount: '+ R$ 6.500,00',
-    dateGroup: '5 de setembro',
-    iconName: 'wallet-outline',
-  },
-  {
-    id: 105,
-    title: 'Pagamento da fatura Nubank',
-    subtitle: 'Origem: pagamento de fatura • Itaú',
-    amount: 2100,
-    isIncome: false,
-    formattedAmount: 'R$ 2.100,00',
-    dateGroup: '5 de setembro',
-    badge: 'Fora do resumo',
-    iconName: 'card-outline',
-  },
-]
-
 type FilterTab = 'all' | 'installments' | 'recurring'
 
 function getCategoryIcon(categoryName?: string | null): keyof typeof Ionicons.glyphMap {
@@ -200,7 +143,17 @@ export default function TransactionsScreen() {
     // 3. Aba Todas com transações reais do backend
     const apiTransactions = query.data?.pages.flatMap((p) => p.items) ?? []
     if (apiTransactions.length > 0) {
-      return apiTransactions.map((t: Transaction) => {
+      let filtered = apiTransactions
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        filtered = filtered.filter(
+          (t) =>
+            (t.description && t.description.toLowerCase().includes(q)) ||
+            (t.category_name && t.category_name.toLowerCase().includes(q)) ||
+            (t.merchant_name && t.merchant_name.toLowerCase().includes(q))
+        )
+      }
+      return filtered.map((t: Transaction) => {
         const numAmount = Number(t.amount) || 0
         const isIncome = t.type === 'income'
         const sign = isIncome ? '+ ' : '– '
@@ -224,21 +177,7 @@ export default function TransactionsScreen() {
       })
     }
 
-    // Fallback to pixel-perfect Figma mock transactions
-    let filtered = FIGMA_MOCK_ITEMS
-    if (selectedTab === 'installments') {
-      filtered = filtered.filter((i) => i.subtitle.includes('x de'))
-    } else if (selectedTab === 'recurring') {
-      filtered = filtered.filter((i) => i.badge?.includes('Assinatura'))
-    }
-    if (search.trim()) {
-      filtered = filtered.filter(
-        (i) =>
-          i.title.toLowerCase().includes(search.toLowerCase()) ||
-          i.subtitle.toLowerCase().includes(search.toLowerCase())
-      )
-    }
-    return filtered
+    return []
   }, [query.data, selectedTab, search, installmentsQuery.data, recurringQuery.data])
 
   // Group items by dateGroup

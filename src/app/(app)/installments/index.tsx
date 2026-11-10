@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Feather from '@expo/vector-icons/Feather'
+import { useQuery } from '@tanstack/react-query'
 import { LinearGradient } from 'expo-linear-gradient'
 import {
   ActivityIndicator,
@@ -15,170 +16,42 @@ import { router } from 'expo-router'
 
 import { InstallmentRow } from '@/components/installments/InstallmentRow'
 import { MonthlyForecast } from '@/components/installments/MonthlyForecast'
+import { installmentsApi } from '@/services/transactions.api'
 import { darkTheme } from '@/theme/colors'
 import type { InstallmentSeriesResponse } from '@/types/installment'
 
 type StatusFilter = 'active' | 'completed' | null
 
-const MOCK_DATA: InstallmentSeriesResponse[] = [
-  {
-    id: 1,
-    description: 'Notebook Dell',
-    merchant_name: 'Eletrônicos Brasil',
-    total_amount: 2400,
-    installment_amount: 200,
-    installment_count: 12,
-    paid_count: 5,
-    remaining_count: 7,
-    remaining_amount: 1400,
-    first_installment_date: '2024-11-15',
-    purchase_date: '2024-11-15',
-    account_id: 1,
-    category_id: 5,
-    first_transaction_id: 101,
-    status: 'active',
-    created_at: '2024-11-15T10:00:00Z',
-    updated_at: '2024-11-15T10:00:00Z',
-  },
-  {
-    id: 2,
-    description: 'Monitor 27"',
-    merchant_name: 'Tech Store',
-    total_amount: 1800,
-    installment_amount: 300,
-    installment_count: 6,
-    paid_count: 2,
-    remaining_count: 4,
-    remaining_amount: 1200,
-    first_installment_date: '2024-11-20',
-    purchase_date: '2024-11-20',
-    account_id: 1,
-    category_id: 5,
-    first_transaction_id: 102,
-    status: 'active',
-    created_at: '2024-11-20T10:00:00Z',
-    updated_at: '2024-11-20T10:00:00Z',
-  },
-  {
-    id: 3,
-    description: 'Geladeira',
-    merchant_name: 'Brastemp',
-    total_amount: 3200,
-    installment_amount: 320,
-    installment_count: 10,
-    paid_count: 3,
-    remaining_count: 7,
-    remaining_amount: 2240,
-    first_installment_date: '2024-11-10',
-    purchase_date: '2024-11-10',
-    account_id: 1,
-    category_id: 6,
-    first_transaction_id: 103,
-    status: 'active',
-    created_at: '2024-11-10T10:00:00Z',
-    updated_at: '2024-11-15T10:00:00Z',
-  },
-  {
-    id: 4,
-    description: 'Fone de ouvido',
-    merchant_name: 'Audio Pro',
-    total_amount: 600,
-    installment_amount: 200,
-    installment_count: 3,
-    paid_count: 0,
-    remaining_count: 3,
-    remaining_amount: 600,
-    first_installment_date: '2024-11-25',
-    purchase_date: '2024-11-25',
-    account_id: 1,
-    category_id: 7,
-    first_transaction_id: 104,
-    status: 'active',
-    created_at: '2024-11-25T10:00:00Z',
-    updated_at: '2024-11-25T10:00:00Z',
-  },
-  {
-    id: 5,
-    description: 'Teclado Mecânico',
-    merchant_name: 'Periféricos Tech',
-    total_amount: 800,
-    installment_amount: 200,
-    installment_count: 4,
-    paid_count: 4,
-    remaining_count: 0,
-    remaining_amount: 0,
-    first_installment_date: '2024-09-10',
-    purchase_date: '2024-09-10',
-    account_id: 1,
-    category_id: 5,
-    first_transaction_id: 105,
-    status: 'completed',
-    created_at: '2024-09-10T10:00:00Z',
-    updated_at: '2024-10-10T10:00:00Z',
-  },
-  {
-    id: 6,
-    description: 'Mouse Gamer',
-    merchant_name: 'Periféricos Tech',
-    total_amount: 450,
-    installment_amount: 150,
-    installment_count: 3,
-    paid_count: 3,
-    remaining_count: 0,
-    remaining_amount: 0,
-    first_installment_date: '2024-08-15',
-    purchase_date: '2024-08-15',
-    account_id: 1,
-    category_id: 7,
-    first_transaction_id: 106,
-    status: 'completed',
-    created_at: '2024-08-15T10:00:00Z',
-    updated_at: '2024-09-15T10:00:00Z',
-  },
-  {
-    id: 7,
-    description: 'Webcam HD',
-    merchant_name: 'Tech Store',
-    total_amount: 350,
-    installment_amount: 175,
-    installment_count: 2,
-    paid_count: 2,
-    remaining_count: 0,
-    remaining_amount: 0,
-    first_installment_date: '2024-07-20',
-    purchase_date: '2024-07-20',
-    account_id: 1,
-    category_id: 5,
-    first_transaction_id: 107,
-    status: 'completed',
-    created_at: '2024-07-20T10:00:00Z',
-    updated_at: '2024-08-20T10:00:00Z',
-  },
-]
-
 export default function InstallmentsScreen() {
   const insets = useSafeAreaInsets()
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active')
 
-  let series = MOCK_DATA
-  const isLoading = false
+  const { data: allSeries = [], isLoading } = useQuery({
+    queryKey: ['installments'],
+    queryFn: async () => {
+      const res = await installmentsApi.list()
+      return (res.data || []) as InstallmentSeriesResponse[]
+    },
+  })
 
-  if (statusFilter) {
-    series = MOCK_DATA.filter((item) => item.status === statusFilter)
-  }
+  const series = statusFilter
+    ? allSeries.filter((item) => item.status === statusFilter)
+    : allSeries
 
   const handleFilterChange = (filter: StatusFilter) => {
-    setStatusFilter(filter)
+    setStatusFilter((prev) => (prev === filter ? null : filter))
   }
 
   const handleSeriesPress = (seriesId: number) => {
     router.push(`/installments/${seriesId}`)
   }
 
-  const currentMonth = 'novembro'
-  const totalMonthly = series.reduce((sum, item) => sum + item.installment_amount, 0)
-  const activeCount = MOCK_DATA.filter((item) => item.status === 'active').length
-  const completedCount = MOCK_DATA.filter((item) => item.status === 'completed').length
+  const currentMonth = new Date().toLocaleDateString('pt-BR', { month: 'long' })
+  const totalMonthly = allSeries
+    .filter((item) => item.status === 'active')
+    .reduce((sum, item) => sum + (item.installment_amount || 0), 0)
+  const activeCount = allSeries.filter((item) => item.status === 'active').length
+  const completedCount = allSeries.filter((item) => item.status === 'completed').length
 
   return (
     <View style={styles.container}>
@@ -199,11 +72,6 @@ export default function InstallmentsScreen() {
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={darkTheme.primary} />
         </View>
-      ) : !series || series.length === 0 ? (
-        <View style={styles.centerContent}>
-          <Feather name="inbox" size={48} color={darkTheme.textMuted} />
-          <Text style={styles.emptyText}>Nenhum parcelamento</Text>
-        </View>
       ) : (
         <FlatList
           data={series}
@@ -223,7 +91,7 @@ export default function InstallmentsScreen() {
                 end={{ x: 1, y: 1 }}
                 style={styles.summaryCard}
               >
-                <Text style={styles.summaryLabel}>Compromido com parcelas</Text>
+                <Text style={styles.summaryLabel}>Comprometido com parcelas</Text>
                 <Text style={styles.summaryAmount}>
                   R$ {totalMonthly.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </Text>
@@ -231,7 +99,7 @@ export default function InstallmentsScreen() {
               </LinearGradient>
 
               {/* Monthly Forecast */}
-              <MonthlyForecast />
+              <MonthlyForecast series={allSeries} />
 
               {/* Filters */}
               <ScrollView
@@ -283,6 +151,16 @@ export default function InstallmentsScreen() {
               <Text style={styles.sectionTitle}>Seus parcelamentos</Text>
             </>
           }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Feather name="inbox" size={40} color={darkTheme.textMuted} />
+              <Text style={styles.emptyText}>
+                {statusFilter === 'completed'
+                  ? 'Nenhum parcelamento quitado'
+                  : 'Nenhum parcelamento em andamento'}
+              </Text>
+            </View>
+          }
         />
       )}
     </View>
@@ -320,7 +198,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterChip: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: darkTheme.surface,
@@ -328,23 +206,25 @@ const styles = StyleSheet.create({
     borderColor: darkTheme.border,
   },
   filterChipActive: {
-    backgroundColor: darkTheme.primary,
+    backgroundColor: 'rgba(168, 85, 247, 0.2)',
     borderColor: darkTheme.primary,
   },
   filterChipText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: darkTheme.text,
+    fontWeight: '500',
+    color: darkTheme.textMuted,
   },
   filterChipTextActive: {
-    color: '#ffffff',
+    color: darkTheme.primary,
+    fontWeight: '600',
   },
   summaryCard: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    borderRadius: 12,
-    marginBottom: 16,
-    gap: 4,
+    margin: 16,
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: darkTheme.border,
+    gap: 8,
   },
   summaryLabel: {
     fontSize: 12,
@@ -364,6 +244,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 12,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
     gap: 12,
   },
   emptyText: {

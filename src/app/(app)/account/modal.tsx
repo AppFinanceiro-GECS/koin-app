@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather'
+import { useQueryClient } from '@tanstack/react-query'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
 import {
@@ -15,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { formatCurrency, parseAmount } from '@/lib/format'
+import { accountsApi } from '@/services/accounts.api'
 import { darkTheme } from '@/theme/colors'
 
 const ACCOUNT_TYPES = [
@@ -25,14 +27,18 @@ const ACCOUNT_TYPES = [
 ]
 
 export default function AccountModal() {
+  const queryClient = useQueryClient()
   const params = useLocalSearchParams<{ id?: string; name?: string; balance?: string }>()
   const isEditing = Boolean(params.id)
 
-  const [name, setName] = useState(params.name || (isEditing ? 'Conta Itaú' : ''))
+  const [name, setName] = useState(params.name || (isEditing ? 'Conta' : ''))
   const [type, setType] = useState('bank')
-  const [balance, setBalance] = useState(params.balance || (isEditing ? '4200' : '0'))
-  const [isShared, setIsShared] = useState(true)
+  const [balance, setBalance] = useState(params.balance || '0')
+  const [isShared, setIsShared] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  const parsedBal = parseAmount(balance)
+  const displayBal = isNaN(parsedBal) ? 0 : parsedBal
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -42,19 +48,30 @@ export default function AccountModal() {
 
     setLoading(true)
     try {
-      // Feedback amigável e retorno à tela anterior
+      const payload = {
+        name: name.trim(),
+        type,
+        balance: displayBal,
+        ownership_type: isShared ? 'household' : 'personal',
+      }
+      if (isEditing && params.id) {
+        await accountsApi.update(Number(params.id), payload)
+      } else {
+        await accountsApi.create(payload)
+      }
+      await queryClient.invalidateQueries({ queryKey: ['accounts'] })
       Alert.alert(
         'Sucesso',
         isEditing ? 'Conta atualizada com sucesso!' : 'Conta cadastrada com sucesso!',
         [{ text: 'OK', onPress: () => router.back() }]
       )
+    } catch (err) {
+      console.warn('Erro ao salvar conta:', err)
+      Alert.alert('Erro', 'Não foi possível salvar a conta na API.')
     } finally {
       setLoading(false)
     }
   }
-
-  const parsedBal = parseAmount(balance)
-  const displayBal = isNaN(parsedBal) ? 0 : parsedBal
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.container}>

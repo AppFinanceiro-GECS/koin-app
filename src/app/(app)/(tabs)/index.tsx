@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { ScopeToggle, type Scope } from '@/components/ScopeToggle'
 import { formatCurrency } from '@/lib/format'
-import { accountsApi } from '@/services/accounts.api'
+import { accountsApi, creditCardsApi } from '@/services/accounts.api'
 import { analyticsApi } from '@/services/analytics.api'
 import { notificationsApi } from '@/services/settings.api'
 import { darkTheme } from '@/theme/colors'
@@ -54,23 +54,33 @@ export default function DashboardScreen() {
     queryFn: async () => (await accountsApi.list()).data,
   })
 
+  const cardsQuery = useQuery({
+    queryKey: ['credit-cards'],
+    queryFn: async () => (await creditCardsApi.list()).data,
+  })
+
   const notificationsQuery = useQuery({
     queryKey: ['notifications', 'unread-count'],
     queryFn: async () => (await notificationsApi.getUnreadCount()).data,
   })
-  const unreadCount = notificationsQuery.data?.unread_count ?? 2
+  const unreadCount = notificationsQuery.data?.unread_count ?? 0
 
-  const refreshing = summaryQuery.isRefetching || accountsQuery.isRefetching || notificationsQuery.isRefetching
+  const refreshing =
+    summaryQuery.isRefetching ||
+    accountsQuery.isRefetching ||
+    notificationsQuery.isRefetching ||
+    cardsQuery.isRefetching
   const onRefresh = () => {
     summaryQuery.refetch()
     accountsQuery.refetch()
     notificationsQuery.refetch()
+    cardsQuery.refetch()
   }
 
   const s = summaryQuery.data
-  const totalExpense = s?.total_expense ?? 3240
-  const totalIncome = s?.total_income ?? 6500
-  const balance = s?.balance ?? 3260
+  const totalExpense = s?.total_expense ?? 0
+  const totalIncome = s?.total_income ?? 0
+  const balance = s?.balance ?? 0
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
@@ -137,50 +147,44 @@ export default function DashboardScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Ver todos os alertas"
-            onPress={() => Alert.alert('Alertas', 'Exibindo todos os alertas')}
+            onPress={() =>
+              Alert.alert(
+                'Alertas',
+                unreadCount > 0 ? `Você possui ${unreadCount} alerta(s) pendente(s).` : 'Nenhum alerta pendente.'
+              )
+            }
           >
             <Text style={styles.viewAllText}>Ver todos</Text>
           </Pressable>
         </View>
 
         <View style={styles.alertsContainer}>
-          {/* Alerta 1 */}
-          <View style={styles.alertCard}>
-            <View style={styles.alertIconWrapper}>
-              <Feather name="calendar" size={16} color={darkTheme.accent} />
+          {unreadCount === 0 ? (
+            <View style={styles.emptyCardMini}>
+              <Feather name="check-circle" size={16} color={darkTheme.accent} />
+              <Text style={styles.emptyTextMini}>Tudo em dia! Nenhum alerta pendente.</Text>
             </View>
-            <View style={styles.alertMessageWrapper}>
-              <Text style={styles.alertTitle}>Nubank vence em 3 dias</Text>
-              <Text style={styles.alertSubtitle}>R$ 2.380,00 em 04/10</Text>
+          ) : (
+            <View style={styles.alertCard}>
+              <View style={styles.alertIconWrapper}>
+                <Feather name="bell" size={16} color={darkTheme.accent} />
+              </View>
+              <View style={styles.alertMessageWrapper}>
+                <Text style={styles.alertTitle}>Notificações pendentes</Text>
+                <Text style={styles.alertSubtitle}>
+                  Você tem {unreadCount} {unreadCount === 1 ? 'alerta' : 'alertas'} para revisar.
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Ver alertas"
+                onPress={() => router.push('/notifications' as any)}
+                style={({ pressed }) => [styles.alertActionPill, pressed && styles.buttonPressed]}
+              >
+                <Text style={styles.alertActionText}>Ver</Text>
+              </Pressable>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Ver alerta Nubank"
-              onPress={() => router.push('/accounts')}
-              style={({ pressed }) => [styles.alertActionPill, pressed && styles.buttonPressed]}
-            >
-              <Text style={styles.alertActionText}>Ver</Text>
-            </Pressable>
-          </View>
-
-          {/* Alerta 2 */}
-          <View style={styles.alertCard}>
-            <View style={styles.alertIconWrapper}>
-              <Feather name="file-text" size={16} color={darkTheme.accent} />
-            </View>
-            <View style={styles.alertMessageWrapper}>
-              <Text style={styles.alertTitle}>Fatura Inter não chegou</Text>
-              <Text style={styles.alertSubtitle}>Fechou em 28/09. Envie o PDF.</Text>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Enviar PDF Inter"
-              onPress={() => router.push('/profile')}
-              style={({ pressed }) => [styles.alertActionPill, pressed && styles.buttonPressed]}
-            >
-              <Text style={styles.alertActionText}>Enviar</Text>
-            </Pressable>
-          </View>
+          )}
         </View>
 
         {/* Cartão-resumo */}
@@ -217,31 +221,45 @@ export default function DashboardScreen() {
 
         {/* Faturas Card */}
         <View style={styles.invoicesCard}>
-          {/* Linha 1: Nubank */}
-          <View style={styles.invoiceItem}>
-            <View style={styles.invoiceIconWrapper}>
-              <Feather name="credit-card" size={18} color={darkTheme.accent} />
+          {cardsQuery.data && cardsQuery.data.length > 0 ? (
+            cardsQuery.data.map((card: any, idx: number) => {
+              const cardName = card.nickname || card.name || `Cartão final ${card.last_four_digits || ''}`
+              const closingText = `Fecha dia ${card.closing_day || 24} • vence ${card.due_day || '04'}`
+              const balanceText = formatCurrency(Math.abs(Number(card.account_balance) || 0))
+              return (
+                <View key={String(card.id)}>
+                  {idx > 0 && <View style={styles.invoiceDivider} />}
+                  <Pressable
+                    style={styles.invoiceItem}
+                    onPress={() => router.push('/accounts')}
+                  >
+                    <View style={styles.invoiceIconWrapper}>
+                      <Feather name="credit-card" size={18} color={darkTheme.accent} />
+                    </View>
+                    <View style={styles.invoiceInfo}>
+                      <Text style={styles.invoiceTitle}>{cardName}</Text>
+                      <Text style={styles.invoiceSubtitle}>{closingText}</Text>
+                    </View>
+                    <Text style={styles.invoiceAmount}>{balanceText}</Text>
+                  </Pressable>
+                </View>
+              )
+            })
+          ) : (
+            <View style={styles.emptyInvoiceWrapper}>
+              <Feather name="credit-card" size={20} color={darkTheme.textSecondary} />
+              <View style={styles.emptyInvoiceInfo}>
+                <Text style={styles.emptyInvoiceTitle}>Nenhum cartão cadastrado</Text>
+                <Text style={styles.emptyInvoiceSubtitle}>Cadastre um cartão para acompanhar faturas e limites.</Text>
+              </View>
+              <Pressable
+                style={styles.alertActionPill}
+                onPress={() => router.push('/credit-card/modal')}
+              >
+                <Text style={styles.alertActionText}>Adicionar</Text>
+              </Pressable>
             </View>
-            <View style={styles.invoiceInfo}>
-              <Text style={styles.invoiceTitle}>Nubank</Text>
-              <Text style={styles.invoiceSubtitle}>Outubro • vence 04/10 • Fechada</Text>
-            </View>
-            <Text style={styles.invoiceAmount}>R$ 2.380,00</Text>
-          </View>
-
-          <View style={styles.invoiceDivider} />
-
-          {/* Linha 2: Inter */}
-          <View style={styles.invoiceItem}>
-            <View style={styles.invoiceIconWrapper}>
-              <Feather name="credit-card" size={18} color={darkTheme.accent} />
-            </View>
-            <View style={styles.invoiceInfo}>
-              <Text style={styles.invoiceTitle}>Inter</Text>
-              <Text style={styles.invoiceSubtitle}>Outubro • aguardando PDF • Estimada</Text>
-            </View>
-            <Text style={styles.invoiceAmount}>R$ 1.150,40</Text>
-          </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -459,5 +477,41 @@ const styles = StyleSheet.create({
   invoiceDivider: {
     height: 1,
     backgroundColor: darkTheme.border,
+  },
+  emptyCardMini: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: darkTheme.surface,
+    borderWidth: 1,
+    borderColor: darkTheme.border,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  emptyTextMini: {
+    fontSize: 13,
+    color: darkTheme.textSecondary,
+  },
+  emptyInvoiceWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+  },
+  emptyInvoiceInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  emptyInvoiceTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: darkTheme.text,
+  },
+  emptyInvoiceSubtitle: {
+    fontSize: 12,
+    color: darkTheme.textSecondary,
+    lineHeight: 16,
   },
 })

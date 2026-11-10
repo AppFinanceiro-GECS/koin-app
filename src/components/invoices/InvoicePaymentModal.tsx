@@ -1,14 +1,9 @@
 import { useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, Modal, ActivityIndicator, StyleSheet } from 'react-native'
 import { useQuery } from '@tanstack/react-query'
+import { accountsApi } from '@/services/accounts.api'
 import { invoiceService } from '@/services/invoiceService'
 import type { InvoiceResponse } from '@/types/invoice'
-
-interface Account {
-  id: number
-  name: string
-  balance?: number
-}
 
 interface InvoicePaymentModalProps {
   visible: boolean
@@ -172,18 +167,16 @@ export function InvoicePaymentModal({
   const [paymentType, setPaymentType] = useState<'full' | 'partial'>('full')
   const [amount, setAmount] = useState<string>('')
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null)
-  const [paymentDate, setPaymentDate] = useState(new Date())
+  const [paymentDate] = useState(new Date())
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const mockAccounts: Account[] = [
-    { id: 1, name: 'Conta Principal', balance: 5000 },
-    { id: 2, name: 'Conta Poupança', balance: 2500 },
-  ]
-
   const { data: accounts = [] } = useQuery({
     queryKey: ['accounts'],
-    queryFn: async () => mockAccounts,
+    queryFn: async () => {
+      const res = await accountsApi.list()
+      return res.data || []
+    },
     enabled: visible,
   })
 

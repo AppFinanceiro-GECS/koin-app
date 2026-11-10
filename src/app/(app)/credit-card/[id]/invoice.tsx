@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, StyleSheet, TextInput, Modal } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -525,6 +525,15 @@ type Screen = 'invoice' | 'payment' | 'success'
 export default function CreditCardInvoiceScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>()
   const router = useRouter()
+
+  useEffect(() => {
+    if (id) {
+      router.replace({
+        pathname: '/invoices',
+        params: { creditCardId: id },
+      } as any)
+    }
+  }, [id, router])
 
   const cardData = mockInvoiceData[id as keyof typeof mockInvoiceData]
   const [selectedMonth, setSelectedMonth] = useState(cardData?.months[1] || 'Out')
