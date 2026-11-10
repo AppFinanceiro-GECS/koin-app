@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather'
+import { useQueryClient } from '@tanstack/react-query'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
 import {
@@ -15,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { formatCurrency, parseAmount } from '@/lib/format'
+import { creditCardsApi } from '@/services/accounts.api'
 import { darkTheme } from '@/theme/colors'
 
 const LINKED_ACCOUNTS = ['Sem vínculo', 'Conta Itaú', 'Conta Inter']
@@ -30,6 +32,7 @@ export default function CreditCardModal() {
   }>()
   const isEditing = Boolean(params.id)
 
+  const queryClient = useQueryClient()
   const [name, setName] = useState(params.name || (isEditing ? 'Nubank' : ''))
   const [digits, setDigits] = useState(params.digits || (isEditing ? '4821' : ''))
   const [linkedAccount, setLinkedAccount] = useState('Sem vínculo')
@@ -37,6 +40,9 @@ export default function CreditCardModal() {
   const [closingDay, setClosingDay] = useState(params.closingDay || '24')
   const [dueDay, setDueDay] = useState(params.dueDay || '04')
   const [loading, setLoading] = useState(false)
+
+  const parsedLimit = parseAmount(limit)
+  const displayLimit = isNaN(parsedLimit) ? 0 : parsedLimit
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -50,18 +56,35 @@ export default function CreditCardModal() {
 
     setLoading(true)
     try {
+      const payload = {
+        name: name.trim(),
+        nickname: name.trim(),
+        credit_limit: displayLimit > 0 ? displayLimit : 5000,
+        closing_day: Math.min(Math.max(Number(closingDay) || 24, 1), 31),
+        due_day: Math.min(Math.max(Number(dueDay) || 4, 1), 31),
+        last_four_digits: digits.trim(),
+        card_brand: 'Mastercard',
+      }
+
+      if (isEditing && params.id) {
+        await creditCardsApi.update(Number(params.id), payload)
+      } else {
+        await creditCardsApi.create(payload)
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['credit-cards'] })
       Alert.alert(
         'Sucesso',
         isEditing ? 'Cartão atualizado com sucesso!' : 'Cartão cadastrado com sucesso!',
         [{ text: 'OK', onPress: () => router.back() }]
       )
+    } catch (err) {
+      console.warn('Erro ao salvar cartão:', err)
+      Alert.alert('Erro', 'Não foi possível salvar o cartão. Verifique a conexão com a API.')
     } finally {
       setLoading(false)
     }
   }
-
-  const parsedLimit = parseAmount(limit)
-  const displayLimit = isNaN(parsedLimit) ? 0 : parsedLimit
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.container}>
