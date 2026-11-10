@@ -5,6 +5,7 @@ import {
   Alert,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,9 +24,10 @@ interface MenuItemProps {
   title: string
   subtitle: string
   onPress: () => void
+  badgeCount?: number
 }
 
-function MenuItem({ icon, title, subtitle, onPress }: MenuItemProps) {
+function MenuItem({ icon, title, subtitle, onPress, badgeCount }: MenuItemProps) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -40,6 +42,11 @@ function MenuItem({ icon, title, subtitle, onPress }: MenuItemProps) {
         <Text style={styles.menuTitle}>{title}</Text>
         <Text style={styles.menuSubtitle}>{subtitle}</Text>
       </View>
+      {badgeCount !== undefined && badgeCount > 0 && (
+        <View style={styles.menuBadge}>
+          <Text style={styles.menuBadgeText}>{badgeCount > 9 ? '9+' : badgeCount}</Text>
+        </View>
+      )}
       <Feather name="chevron-right" size={18} color={darkTheme.textMuted} />
     </Pressable>
   )
@@ -117,6 +124,17 @@ export default function ProfileScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={unreadQuery.isRefetching || installmentsQuery.isRefetching}
+            onRefresh={() => {
+              unreadQuery.refetch()
+              installmentsQuery.refetch()
+            }}
+            tintColor={darkTheme.accent}
+            colors={[darkTheme.primary]}
+          />
+        }
       >
         {/* Cartão de Perfil */}
         <View style={styles.profileCard}>
@@ -170,14 +188,8 @@ export default function ProfileScreen() {
                 ? `${unreadCount} não lida(s) · alertas`
                 : 'Nenhum alerta pendente'
             }
-            onPress={() =>
-              Alert.alert(
-                'Notificações',
-                unreadCount > 0
-                  ? `Você tem ${unreadCount} notificação(ões) pendente(s).`
-                  : 'Nenhum alerta novo.'
-              )
-            }
+            badgeCount={unreadCount}
+            onPress={() => router.push('/notifications')}
           />
           <View style={styles.divider} />
           <MenuItem
@@ -340,6 +352,18 @@ const styles = StyleSheet.create({
   menuSubtitle: {
     fontSize: 12,
     color: darkTheme.textSecondary,
+  },
+  menuBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: darkTheme.primary,
+    marginRight: 4,
+  },
+  menuBadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
   },
   divider: {
     height: 1,
