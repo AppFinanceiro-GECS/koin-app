@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { router, useLocalSearchParams } from 'expo-router'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { IconTile } from '@/components/IconTile'
@@ -37,6 +38,8 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 export default function DuplicateDocumentScreen() {
   const { documentId } = useLocalSearchParams<{ documentId?: string }>()
   const user = useAuthStore((s) => s.user)
+  const queryClient = useQueryClient()
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const id = Number(documentId)
   const original = useQuery({
@@ -49,6 +52,37 @@ export default function DuplicateDocumentScreen() {
   const userName = user?.name ?? 'você'
   const placeholder = original.isLoading ? '…' : '—'
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/invoice/import'))
+
+  const hasExtractedItems =
+    original.data?.status === 'completed' ||
+    Boolean(original.data?.extracted_items && original.data.extracted_items.length > 0)
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Apagar arquivo anterior?',
+      'O documento salvo será removido do banco de dados para que você possa reenviar e testar novamente.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Apagar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsDeleting(true)
+              await documentsApi.delete(id)
+              await queryClient.invalidateQueries({ queryKey: ['documents'] })
+              router.replace('/invoice/import')
+            } catch (err) {
+              console.warn('Erro ao excluir documento:', err)
+              Alert.alert('Erro', 'Não foi possível apagar o documento.')
+            } finally {
+              setIsDeleting(false)
+            }
+          },
+        },
+      ]
+    )
+  }
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.container}>
@@ -75,7 +109,11 @@ export default function DuplicateDocumentScreen() {
               />
             </>
           )}
-          <Text style={styles.cardNote}>Nenhum novo processamento por IA.</Text>
+          <Text style={styles.cardNote}>
+            {hasExtractedItems
+              ? 'Lançamentos já foram extraídos e podem ser revisados.'
+              : 'Nenhum novo processamento por IA.'}
+          </Text>
         </View>
 
         <WarningCard title="Arquivo ≠ transação">
@@ -85,6 +123,34 @@ export default function DuplicateDocumentScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
+        {hasExtractedItems && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              router.replace({
+                pathname: '/invoice/import',
+                params: { documentId: String(id) },
+              })
+            }
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.primaryButtonText}>Ver lançamentos extraídos</Text>
+          </Pressable>
+        )}
+
+        <Pressable
+          accessibilityRole="button"
+          disabled={isDeleting}
+          onPress={handleDelete}
+          style={({ pressed }) => [styles.dangerButton, (pressed || isDeleting) && styles.pressed]}
+        >
+          {isDeleting ? (
+            <ActivityIndicator color={darkTheme.error} />
+          ) : (
+            <Text style={styles.dangerButtonText}>Apagar arquivo e enviar novo</Text>
+          )}
+        </Pressable>
+
         <Pressable
           accessibilityRole="button"
           onPress={goBack}
@@ -157,7 +223,34 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 16,
+    gap: 10,
+  },
+  primaryButton: {
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: darkTheme.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#f8fafc',
+  },
+  dangerButton: {
+    height: 52,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: darkTheme.errorBorder,
+    backgroundColor: darkTheme.errorBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dangerButtonText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: darkTheme.error,
   },
   button: {
     height: 52,
@@ -174,6 +267,6 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 15,
     fontWeight: '500',
-    color: darkTheme.text,
+    color: darkTheme.textSecondary,
   },
 })

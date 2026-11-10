@@ -2,8 +2,8 @@ import Ionicons from '@expo/vector-icons/Ionicons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as DocumentPicker from 'expo-document-picker'
 import { LinearGradient } from 'expo-linear-gradient'
-import { router } from 'expo-router'
-import { useCallback, useEffect, useState } from 'react'
+import { router, useLocalSearchParams } from 'expo-router'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -116,9 +116,13 @@ const INITIAL_EXTRACTED_ITEMS: ExtractedTransactionItem[] = [
 export default function InvoiceImportScreen() {
   const insets = useSafeAreaInsets()
   const queryClient = useQueryClient()
+  const { documentId: paramDocumentId } = useLocalSearchParams<{ documentId?: string }>()
+
+  const initialDocId =
+    paramDocumentId && Number(paramDocumentId) > 0 ? Number(paramDocumentId) : null
 
   // Steps
-  const [step, setStep] = useState<ImportStep>('upload')
+  const [step, setStep] = useState<ImportStep>(initialDocId ? 'reading' : 'upload')
   const [docType, setDocType] = useState<DocumentType>('invoice')
 
   // Inputs
@@ -139,7 +143,9 @@ export default function InvoiceImportScreen() {
   const [hasPassword, setHasPassword] = useState(false)
   const [pdfPassword, setPdfPassword] = useState('')
   const [passwordError, setPasswordError] = useState(false)
-  const [uploadedDocumentId, setUploadedDocumentId] = useState<number | null>(null)
+  const [uploadedDocumentId, setUploadedDocumentId] = useState<number | null>(initialDocId)
+  const isReadingCancelledRef = useRef(false)
+  const isUploadingRef = useRef(false)
 
   // Reading state
   const [simulatedProgress, setSimulatedProgress] = useState(1)
@@ -306,18 +312,35 @@ export default function InvoiceImportScreen() {
     }
   }
 
-  const handleStartUpload = async () => {
+  const handleCancelReading = async () => {
+    isReadingCancelledRef.current = true
+    const docId = uploadedDocumentId
+    setUploadedDocumentId(null)
+    setStep('upload')
+
+    if (docId) {
+      try {
+        await documentsApi.delete(docId)
+      } catch (err) {
+        console.warn('Erro ao excluir documento cancelado:', err)
+      }
+    }
+  }
+
+  const handleStartUpload = async (force: boolean = false) => {
     if (hasPassword && pdfPassword.trim().toLowerCase() === 'errada') {
       setPasswordError(true)
       return
     }
     setPasswordError(false)
     setUploadedDocumentId(null)
+    isReadingCancelledRef.current = false
     setSimulatedProgress(1)
     setStep('reading')
 
     if (selectedFile?.uri) {
       try {
+        isUploadingRef.current = true
         const uploadFile = {
           uri: selectedFile.uri,
           name: selectedFile.name,
@@ -328,17 +351,54 @@ export default function InvoiceImportScreen() {
         const res = await documentsApi.uploadAsync(
           uploadFile,
           hasPassword ? pdfPassword : undefined,
-          activeCard?.id
+          activeCard?.id,
+          force
         )
+        isUploadingRef.current = false
+
+        // Se o usuário cancelou a leitura enquanto o upload ainda estava em trânsito
+        if (isReadingCancelledRef.current) {
+          try {
+            await documentsApi.delete(res.data.id)
+          } catch (e) {
+            console.warn('Erro ao excluir upload cancelado:', e)
+          }
+          return
+        }
+
         setUploadedDocumentId(res.data.id)
       } catch (err: unknown) {
+        isUploadingRef.current = false
+        if (isReadingCancelledRef.current) {
+          return
+        }
+
         const dupId = getDuplicateDocumentId(err)
         if (dupId) {
-          router.push({
-            pathname: '/invoice/duplicate',
-            params: { documentId: String(dupId) },
-          })
-          setStep('upload')
+          Alert.alert(
+            'Arquivo já recebido',
+            'Este documento já foi enviado anteriormente. Deseja reprocessar com IA para testar novamente ou ver os dados existentes?',
+            [
+              {
+                text: 'Cancelar',
+                style: 'cancel',
+                onPress: () => setStep('upload'),
+              },
+              {
+                text: 'Ver dados',
+                onPress: () => {
+                  setUploadedDocumentId(dupId)
+                  setStep('reading')
+                },
+              },
+              {
+                text: 'Reprocessar com IA',
+                onPress: () => {
+                  handleStartUpload(true)
+                },
+              },
+            ]
+          )
           return
         }
 
@@ -531,9 +591,43 @@ export default function InvoiceImportScreen() {
           accessibilityRole="button"
           accessibilityLabel={step === 'review' ? 'Voltar' : 'Fechar'}
           style={styles.headerButton}
-          onPress={() => {
-            if (step === 'review') setStep('upload')
-            else router.back()
+          onPress={async () => {
+            if (step === 'review') {
+              if (uploadedDocumentId) {
+                Alert.alert(
+                  'Sair da revisão',
+                  'Deseja descartar este documento do histórico para poder reenviá-lo?',
+                  [
+                    { text: 'Cancelar', style: 'cancel' },
+                    {
+                      text: 'Manter e sair',
+                      onPress: () => setStep('upload'),
+                    },
+                    {
+                      text: 'Descartar e apagar',
+                      style: 'destructive',
+                      onPress: async () => {
+                        if (uploadedDocumentId) {
+                          try {
+                            await documentsApi.delete(uploadedDocumentId)
+                          } catch (e) {
+                            console.warn('Erro ao excluir documento:', e)
+                          }
+                          setUploadedDocumentId(null)
+                        }
+                        setStep('upload')
+                      },
+                    },
+                  ]
+                )
+              } else {
+                setStep('upload')
+              }
+            } else if (step === 'reading') {
+              await handleCancelReading()
+            } else {
+              router.back()
+            }
           }}
         >
           <Ionicons
@@ -733,7 +827,7 @@ export default function InvoiceImportScreen() {
             {/* Botão Enviar e ler com IA */}
             <Pressable
               style={({ pressed }) => [styles.primaryButton, pressed && styles.btnPressed]}
-              onPress={handleStartUpload}
+              onPress={() => handleStartUpload(false)}
             >
               <Text style={styles.primaryButtonText}>Enviar e ler com IA</Text>
             </Pressable>
@@ -824,7 +918,7 @@ export default function InvoiceImportScreen() {
 
             <Pressable
               style={({ pressed }) => [styles.secondaryButton, pressed && styles.btnPressed]}
-              onPress={() => setStep('upload')}
+              onPress={handleCancelReading}
             >
               <Text style={styles.secondaryButtonText}>Cancelar leitura</Text>
             </Pressable>

@@ -29,22 +29,24 @@ const appendFile = (formData: FormData, field: string, file: UploadFile) => {
 }
 
 export const documentsApi = {
-  upload: (file: UploadFile, password?: string, creditCardId?: number) => {
+  upload: (file: UploadFile, password?: string, creditCardId?: number, force: boolean = false) => {
     const formData = new FormData()
     appendFile(formData, 'file', file)
     if (password) formData.append('password', password)
     if (creditCardId) formData.append('credit_card_id', creditCardId.toString())
-    return api.post<DocumentResponse>('/documents', formData, {
+    const url = force ? '/documents?force=true' : '/documents'
+    return api.post<DocumentResponse>(url, formData, {
       transformRequest: (data) => data,
     })
   },
   // Upload async: retorna imediatamente com status "processing"
-  uploadAsync: (file: UploadFile, password?: string, creditCardId?: number) => {
+  uploadAsync: (file: UploadFile, password?: string, creditCardId?: number, force: boolean = false) => {
     const formData = new FormData()
     appendFile(formData, 'file', file)
     if (password) formData.append('password', password)
     if (creditCardId) formData.append('credit_card_id', creditCardId.toString())
-    return api.post<DocumentAsyncUploadResponse>('/documents/async', formData, {
+    const url = force ? '/documents/async?force=true' : '/documents/async'
+    return api.post<DocumentAsyncUploadResponse>(url, formData, {
       transformRequest: (data) => data,
     })
   },
@@ -57,6 +59,8 @@ export const documentsApi = {
   },
   list: () => api.get<DocumentSummary[]>('/documents'),
   get: (id: number) => api.get<DocumentResponse>(`/documents/${id}`),
+  delete: (id: number) => api.delete(`/documents/${id}`),
+  retry: (id: number) => api.post<DocumentResponse>(`/documents/${id}/retry`),
 }
 
 export const invoicesApi = {
