@@ -75,9 +75,9 @@ export default function ProfileScreen() {
   const unreadCount = unreadQuery.data ?? 0
   const installmentsCount = installmentsQuery.data ?? 0
 
-  const displayName = user?.name || 'Pedro Andrade'
-  const displaySubtitle = user?.email || 'Família Andrade'
-  const avatarLetter = (displayName.trim()[0] || 'P').toUpperCase()
+  const displayName = user?.name || user?.email || 'Minha conta'
+  const displaySubtitle = user?.email && user?.name ? user.email : ''
+  const avatarLetter = (displayName.trim()[0] || 'U').toUpperCase()
 
   function confirmSignOut() {
     if (Platform.OS === 'web') {

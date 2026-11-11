@@ -173,7 +173,7 @@ export default function InviteScreen() {
                       if (formError) setFormError(null)
                     }}
                     autoComplete="name"
-                    placeholder="Pedro Andrade"
+                    placeholder="Seu nome completo"
                     placeholderTextColor={darkTheme.textMuted}
                   />
                 </View>

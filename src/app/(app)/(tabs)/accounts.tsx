@@ -387,6 +387,8 @@ export default function AccountsScreen() {
                               id: String(selectedAccount.id),
                               name: selectedAccount.name,
                               balance: String(selectedAccount.balance),
+                              type: selectedAccount.type,
+                              ownership_type: selectedAccount.shared ? 'household' : 'personal',
                             },
                           })
                         }

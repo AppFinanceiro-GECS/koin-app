@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { router, useLocalSearchParams } from 'expo-router'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Alert,
   KeyboardAvoidingView,
@@ -15,8 +15,10 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { familyDisplayName, memberFirstName } from '@/lib/family'
 import { formatCurrency, parseAmount } from '@/lib/format'
 import { accountsApi } from '@/services/accounts.api'
+import { familyApi } from '@/services/settings.api'
 import { darkTheme } from '@/theme/colors'
 
 const ACCOUNT_TYPES = [
@@ -28,14 +30,43 @@ const ACCOUNT_TYPES = [
 
 export default function AccountModal() {
   const queryClient = useQueryClient()
-  const params = useLocalSearchParams<{ id?: string; name?: string; balance?: string }>()
+  const params = useLocalSearchParams<{
+    id?: string
+    name?: string
+    balance?: string
+    type?: string
+    ownership_type?: string
+  }>()
   const isEditing = Boolean(params.id)
 
   const [name, setName] = useState(params.name || (isEditing ? 'Conta' : ''))
-  const [type, setType] = useState('bank')
+  const [type, setType] = useState(params.type || 'bank')
   const [balance, setBalance] = useState(params.balance || '0')
-  const [isShared, setIsShared] = useState(false)
+  const [isShared, setIsShared] = useState(
+    params.ownership_type === 'household' || params.ownership_type === 'family'
+  )
   const [loading, setLoading] = useState(false)
+
+  const familyQuery = useQuery({
+    queryKey: ['family', 'context'],
+    queryFn: async () => (await familyApi.getContext()).data,
+    retry: false,
+  })
+
+  const family = familyQuery.data
+  const hasFamily = Boolean(family && family.members && family.members.length > 0)
+
+  const familySubtitle = useMemo(() => {
+    if (!family || !family.members || family.members.length === 0) return ''
+    const familyName = familyDisplayName(family.members)
+    const memberNames = family.members.map(memberFirstName).filter(Boolean)
+    if (memberNames.length === 0) return familyName
+    if (memberNames.length === 1) {
+      return `${familyName} · ${memberNames[0]} vê o que foi compartilhado.`
+    }
+    const namesList = `${memberNames.slice(0, -1).join(', ')} e ${memberNames[memberNames.length - 1]}`
+    return `${familyName} · ${namesList} veem o que foi compartilhado.`
+  }, [family])
 
   const parsedBal = parseAmount(balance)
   const displayBal = isNaN(parsedBal) ? 0 : parsedBal
@@ -52,7 +83,7 @@ export default function AccountModal() {
         name: name.trim(),
         type,
         balance: displayBal,
-        ownership_type: isShared ? 'household' : 'personal',
+        ownership_type: hasFamily && isShared ? 'household' : 'personal',
       }
       if (isEditing && params.id) {
         await accountsApi.update(Number(params.id), payload)
@@ -101,7 +132,7 @@ export default function AccountModal() {
           <View style={styles.badgeWrapper}>
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
-                {isEditing ? `Edição · ${name || 'Conta Itaú'}` : 'Nova conta'}
+                {isEditing ? `Edição · ${name || 'Conta'}` : 'Nova conta'}
               </Text>
             </View>
           </View>
@@ -179,23 +210,26 @@ export default function AccountModal() {
             </Text>
           </View>
 
-          {/* Card: Compartilhar com a família */}
-          <Pressable
-            onPress={() => setIsShared(!isShared)}
-            style={styles.infoCard}
-          >
-            <View style={styles.switchRow}>
-              <View style={styles.switchTextCol}>
-                <Text style={styles.infoCardTitle}>Compartilhar com a família</Text>
-                <Text style={styles.infoCardText}>
-                  Família Andrade · Marina, Pedro e Lucas veem o que foi compartilhado.
-                </Text>
+          {/* Card: Compartilhar com a família (apenas se pertencer a uma família) */}
+          {hasFamily && (
+            <Pressable
+              onPress={() => setIsShared(!isShared)}
+              style={styles.infoCard}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isShared }}
+              accessibilityLabel="Compartilhar com a família"
+            >
+              <View style={styles.switchRow}>
+                <View style={styles.switchTextCol}>
+                  <Text style={styles.infoCardTitle}>Compartilhar com a família</Text>
+                  <Text style={styles.infoCardText}>{familySubtitle}</Text>
+                </View>
+                <View style={[styles.checkbox, isShared && styles.checkboxActive]}>
+                  {isShared && <Feather name="check" size={14} color="#ffffff" />}
+                </View>
               </View>
-              <View style={[styles.checkbox, isShared && styles.checkboxActive]}>
-                {isShared && <Feather name="check" size={14} color="#ffffff" />}
-              </View>
-            </View>
-          </Pressable>
+            </Pressable>
+          )}
         </ScrollView>
 
         {/* Rodapé com botões de ação */}

@@ -22,6 +22,7 @@ import { getDuplicateDocumentId } from '@/lib/documents'
 import { formatCurrency } from '@/lib/format'
 import { accountsApi, creditCardsApi } from '@/services/accounts.api'
 import { documentsApi } from '@/services/documents.api'
+import { familyApi } from '@/services/settings.api'
 import { transactionsApi } from '@/services/transactions.api'
 import { darkTheme } from '@/theme/colors'
 
@@ -182,7 +183,15 @@ export default function InvoiceImportScreen() {
 
   // Receipt review state
   const [userReceiptAccount, setReceiptAccount] = useState<string | null>(null)
-  const [receiptShareFamily, setReceiptShareFamily] = useState(true)
+  const [receiptShareFamily, setReceiptShareFamily] = useState(false)
+
+  // Family context
+  const { data: family } = useQuery({
+    queryKey: ['family', 'context'],
+    queryFn: async () => (await familyApi.getContext()).data,
+    retry: false,
+  })
+  const hasFamily = Boolean(family && family.members && family.members.length > 0)
 
   // Fetch accounts/cards if available
   const { data: cards } = useQuery({
@@ -1161,17 +1170,19 @@ export default function InvoiceImportScreen() {
             </View>
 
             {/* Opções de Rateio / Categoria */}
-            <View style={styles.couponOptionsCard}>
-              <View style={styles.switchRow}>
-                <Text style={styles.switchLabel}>Compartilhar com a família</Text>
-                <Switch
-                  value={receiptShareFamily}
-                  onValueChange={setReceiptShareFamily}
-                  trackColor={{ false: '#2b233c', true: '#7c3aed' }}
-                  thumbColor="#ffffff"
-                />
+            {hasFamily && (
+              <View style={styles.couponOptionsCard}>
+                <View style={styles.switchRow}>
+                  <Text style={styles.switchLabel}>Compartilhar com a família</Text>
+                  <Switch
+                    value={receiptShareFamily}
+                    onValueChange={setReceiptShareFamily}
+                    trackColor={{ false: '#2b233c', true: '#7c3aed' }}
+                    thumbColor="#ffffff"
+                  />
+                </View>
               </View>
-            </View>
+            )}
 
             <View style={styles.infoBox}>
               <Ionicons name="information-circle-outline" size={20} color="#a78bfa" />
@@ -1432,15 +1443,17 @@ export default function InvoiceImportScreen() {
               )}
 
               {/* Family sharing toggle */}
-              <View style={styles.familyShareCard}>
-                <Text style={styles.switchLabel}>Compartilhar com a família</Text>
-                <Switch
-                  value={editShareFamily}
-                  onValueChange={setEditShareFamily}
-                  trackColor={{ false: '#2b233c', true: '#7c3aed' }}
-                  thumbColor="#ffffff"
-                />
-              </View>
+              {hasFamily && (
+                <View style={styles.familyShareCard}>
+                  <Text style={styles.switchLabel}>Compartilhar com a família</Text>
+                  <Switch
+                    value={editShareFamily}
+                    onValueChange={setEditShareFamily}
+                    trackColor={{ false: '#2b233c', true: '#7c3aed' }}
+                    thumbColor="#ffffff"
+                  />
+                </View>
+              )}
 
               {/* Save changes button */}
               <Pressable
