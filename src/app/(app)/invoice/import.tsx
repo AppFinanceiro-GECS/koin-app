@@ -33,15 +33,37 @@ interface ExtractedTransactionItem {
   id: number
   description: string
   date: string
+  rawDate?: string | null
   category: string
   amount: number
   isPayment?: boolean
   isDuplicate?: boolean
   installmentInfo?: string
+  installmentCurrent?: number | null
+  installmentTotal?: number | null
   selected: boolean
   isPending: boolean
   linkedInstallment?: string
   shareWithFamily: boolean
+}
+
+const getInvoiceMonthName = (month?: number | null) => {
+  if (!month) return ''
+  const months = [
+    'janeiro',
+    'fevereiro',
+    'março',
+    'abril',
+    'maio',
+    'junho',
+    'julho',
+    'agosto',
+    'setembro',
+    'outubro',
+    'novembro',
+    'dezembro',
+  ]
+  return months[month - 1] || ''
 }
 
 const INITIAL_EXTRACTED_ITEMS: ExtractedTransactionItem[] = [
@@ -148,7 +170,7 @@ export default function InvoiceImportScreen() {
 
   // Review state
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>('pending')
-  const [items, setItems] = useState<ExtractedTransactionItem[]>(INITIAL_EXTRACTED_ITEMS)
+  const [items, setItems] = useState<ExtractedTransactionItem[]>([])
   const [editingItem, setEditingItem] = useState<ExtractedTransactionItem | null>(null)
 
   // Edit draft inside modal
@@ -228,7 +250,8 @@ export default function InvoiceImportScreen() {
             (it, idx) => ({
               id: idx + 1,
               description: it.description,
-              date: it.date ? `${it.date.slice(8, 10)}/${it.date.slice(5, 7)}` : '01/10',
+              date: it.date ? `${it.date.slice(8, 10)}/${it.date.slice(5, 7)}` : '',
+              rawDate: it.date || null,
               category: it.category || 'Geral',
               amount: it.amount,
               isPayment: it.transaction_type === 'pagamento' || it.amount < 0,
@@ -236,15 +259,34 @@ export default function InvoiceImportScreen() {
               installmentInfo: it.is_installment
                 ? `Parcela ${it.installment_current ?? 1} de ${it.installment_total ?? 1}.`
                 : undefined,
+              installmentCurrent: it.installment_current,
+              installmentTotal: it.installment_total,
               selected: !it.is_duplicate,
               isPending: Boolean(it.is_installment) || Boolean(it.is_duplicate),
               shareWithFamily: false,
             })
           )
           setItems(mappedItems)
+        } else {
+          setItems([])
+        }
+        if (documentData.document_type === 'cupom_fiscal') {
+          setDocType('receipt')
+        } else {
+          setDocType('invoice')
         }
         if (documentData.card_info?.card_name) {
           setSelectedCard(documentData.card_info.card_name)
+        } else if (documentData.card_info?.card_bank) {
+          setSelectedCard(documentData.card_info.card_bank)
+        } else if (documentData.card_info?.card_issuer) {
+          setSelectedCard(documentData.card_info.card_issuer)
+        }
+        if (documentData.card_info?.invoice_month) {
+          const mName = getInvoiceMonthName(documentData.card_info.invoice_month)
+          const year = documentData.card_info.invoice_year || new Date().getFullYear()
+          const capitalized = mName ? mName.charAt(0).toUpperCase() + mName.slice(1) : ''
+          setSelectedInvoice(`${capitalized} de ${year}`)
         }
         setStep('review')
       }, 700)
@@ -256,7 +298,13 @@ export default function InvoiceImportScreen() {
           'Não conseguimos extrair os lançamentos deste arquivo. Deseja revisar os dados de exemplo?',
         [
           { text: 'Voltar', style: 'cancel', onPress: () => setStep('upload') },
-          { text: 'Ver exemplo', onPress: () => setStep('review') },
+          {
+            text: 'Ver exemplo',
+            onPress: () => {
+              setItems(INITIAL_EXTRACTED_ITEMS)
+              setStep('review')
+            },
+          },
         ]
       )
     }
@@ -457,12 +505,12 @@ export default function InvoiceImportScreen() {
             document_id: uploadedDocumentId || undefined,
             account_id: targetAccountId,
             amount: Math.abs(i.amount),
-            date: today,
+            date: i.rawDate || today,
             description: i.description,
             merchant_name: i.description,
             is_installment: Boolean(i.installmentInfo),
-            installment_current: i.installmentInfo ? 2 : undefined,
-            installment_total: i.installmentInfo ? 6 : undefined,
+            installment_current: i.installmentCurrent ?? (i.installmentInfo ? 1 : undefined),
+            installment_total: i.installmentTotal ?? (i.installmentInfo ? 1 : undefined),
             ownership_type: (i.shareWithFamily ? 'household' : 'personal') as 'personal' | 'household',
           }))
 
@@ -474,9 +522,9 @@ export default function InvoiceImportScreen() {
       } else {
         const activeItems = items.filter((i) => i.selected)
         const receiptItems = activeItems.length > 0 ? activeItems : [
-          { description: 'Arroz 5 kg', amount: 29.9, shareWithFamily: false },
-          { description: 'Café 500 g', amount: 22.5, shareWithFamily: false },
-          { description: 'Frutas e verduras', amount: 35.0, shareWithFamily: false },
+          { description: 'Arroz 5 kg', amount: 29.9, shareWithFamily: false, rawDate: null },
+          { description: 'Café 500 g', amount: 22.5, shareWithFamily: false, rawDate: null },
+          { description: 'Frutas e verduras', amount: 35.0, shareWithFamily: false, rawDate: null },
         ]
 
         try {
@@ -484,7 +532,7 @@ export default function InvoiceImportScreen() {
             await transactionsApi.create({
               type: 'expense',
               amount: Math.abs(ci.amount),
-              date: today,
+              date: ci.rawDate || today,
               account_id: targetAccountId,
               description: ci.description,
               ownership_type: ci.shareWithFamily ? 'household' : 'personal',
@@ -512,6 +560,33 @@ export default function InvoiceImportScreen() {
     if (reviewFilter === 'pending') return i.isPending
     return true
   })
+
+  const cardTitle =
+    documentData?.card_info?.card_name ||
+    documentData?.card_info?.card_bank ||
+    documentData?.card_info?.card_issuer ||
+    userSelectedCard ||
+    (Array.isArray(cards) && cards.length > 0 ? cards[0].name : '')
+
+  const invoiceMonthName = getInvoiceMonthName(documentData?.card_info?.invoice_month)
+
+  const itemsSum = items
+    .filter((i) => !i.isPayment)
+    .reduce((acc, curr) => acc + (curr.amount > 0 ? curr.amount : 0), 0)
+
+  const invoiceTotal =
+    typeof documentData?.card_info?.total_amount === 'number' && documentData.card_info.total_amount > 0
+      ? documentData.card_info.total_amount
+      : itemsSum
+
+  const isTotalMatching = Math.abs(invoiceTotal - itemsSum) < 0.05
+  const pendingCount = items.filter((i) => i.isPending).length
+  const nonPendingCount = items.length - pendingCount
+
+  const invoiceHeaderTitle =
+    items.length === 1
+      ? `1 lançamento encontrado${invoiceMonthName ? ` na fatura de ${invoiceMonthName}` : ' na fatura'}${cardTitle ? ` do ${cardTitle}` : ''}`
+      : `${items.length} lançamentos encontrados${invoiceMonthName ? ` na fatura de ${invoiceMonthName}` : ' na fatura'}${cardTitle ? ` do ${cardTitle}` : ''}`
 
   // STEP INDICATOR (1. Enviar, 2. Ler, 3. Revisar)
   const renderStepper = () => {
@@ -797,8 +872,12 @@ export default function InvoiceImportScreen() {
                 <Ionicons name="document-text-outline" size={24} color="#a78bfa" />
               </View>
               <View style={styles.fileInfo}>
-                <Text style={styles.fileName}>{selectedFile?.name || 'fatura-inter-outubro.pdf'}</Text>
-                <Text style={styles.fileSize}>{selectedFile?.size || '1,2 MB'}, enviado</Text>
+                <Text style={styles.fileName}>
+                  {selectedFile?.name || documentData?.original_filename || 'fatura.pdf'}
+                </Text>
+                <Text style={styles.fileSize}>
+                  {selectedFile?.size ? `${selectedFile.size}, enviado` : 'Enviado'}
+                </Text>
               </View>
               <Ionicons name="checkmark-circle" size={20} color="#34d399" />
             </View>
@@ -813,8 +892,14 @@ export default function InvoiceImportScreen() {
               <View style={styles.sparklesBox}>
                 <Ionicons name="sparkles" size={26} color="#a78bfa" />
               </View>
-              <Text style={styles.readingTitle}>Lendo sua fatura</Text>
-              <Text style={styles.readingSubtitle}>14 encontrados até agora</Text>
+              <Text style={styles.readingTitle}>
+                {docType === 'receipt' ? 'Lendo seu cupom' : 'Lendo sua fatura'}
+              </Text>
+              <Text style={styles.readingSubtitle}>
+                {documentData?.extracted_items && documentData.extracted_items.length > 0
+                  ? `${documentData.extracted_items.length} ${documentData.extracted_items.length === 1 ? 'lançamento encontrado' : 'lançamentos encontrados'} até agora`
+                  : 'Identificando lançamentos...'}
+              </Text>
             </LinearGradient>
 
             {/* Checklist */}
@@ -884,18 +969,20 @@ export default function InvoiceImportScreen() {
 
             {/* Card Conferência */}
             <View style={styles.conferenceCard}>
-              <Text style={styles.conferenceHeader}>
-                14 lançamentos encontrados na fatura de outubro do Inter
-              </Text>
+              <Text style={styles.conferenceHeader}>{invoiceHeaderTitle}</Text>
               <View style={styles.conferenceRow}>
                 <View style={styles.conferenceCol}>
                   <Text style={styles.conferenceLabel}>Total da fatura</Text>
-                  <Text style={styles.conferenceValue}>R$ 1.150,40</Text>
+                  <Text style={styles.conferenceValue}>{formatCurrency(invoiceTotal)}</Text>
                 </View>
                 <View style={styles.conferenceDivider} />
                 <View style={styles.conferenceCol}>
-                  <Text style={styles.conferenceLabel}>Soma dos itens ✓</Text>
-                  <Text style={styles.conferenceValueChecked}>R$ 1.150,40</Text>
+                  <Text style={styles.conferenceLabel}>
+                    Soma dos itens {isTotalMatching ? '✓' : ''}
+                  </Text>
+                  <Text style={isTotalMatching ? styles.conferenceValueChecked : styles.conferenceValue}>
+                    {formatCurrency(itemsSum)}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -907,7 +994,7 @@ export default function InvoiceImportScreen() {
                 onPress={() => setReviewFilter('pending')}
               >
                 <Text style={[styles.tabChipText, reviewFilter === 'pending' && styles.tabChipTextActive]}>
-                  Pendências (3)
+                  Pendências ({pendingCount})
                 </Text>
               </Pressable>
 
@@ -916,7 +1003,7 @@ export default function InvoiceImportScreen() {
                 onPress={() => setReviewFilter('all')}
               >
                 <Text style={[styles.tabChipText, reviewFilter === 'all' && styles.tabChipTextActive]}>
-                  Todos (14)
+                  Todos ({items.length})
                 </Text>
               </Pressable>
             </View>
@@ -972,23 +1059,31 @@ export default function InvoiceImportScreen() {
               ))}
             </View>
 
-            <Text style={styles.extraItemsNote}>Mais 10 itens sem pendências</Text>
+            {reviewFilter === 'pending' && nonPendingCount > 0 ? (
+              <Text style={styles.extraItemsNote}>
+                Mais {nonPendingCount} {nonPendingCount === 1 ? 'item sem pendências' : 'itens sem pendências'}
+              </Text>
+            ) : items.length === 0 ? (
+              <Text style={styles.extraItemsNote}>Nenhum lançamento identificado no arquivo.</Text>
+            ) : null}
 
             {/* Confirmation Footer */}
             <View style={styles.reviewFooter}>
-              <Text style={styles.selectedCountText}>{selectedCount} de 14 selecionados</Text>
+              <Text style={styles.selectedCountText}>
+                {selectedCount} de {items.length} {items.length === 1 ? 'selecionado' : 'selecionados'}
+              </Text>
               <Text style={styles.nothingSavedNote}>Nada é salvo antes de confirmar</Text>
 
               <Pressable
                 style={({ pressed }) => [styles.primaryButton, pressed && styles.btnPressed]}
                 onPress={() => confirmMutation.mutate()}
-                disabled={confirmMutation.isPending}
+                disabled={confirmMutation.isPending || selectedCount === 0}
               >
                 {confirmMutation.isPending ? (
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
                   <Text style={styles.primaryButtonText}>
-                    Confirmar {selectedCount} lançamentos
+                    Confirmar {selectedCount} {selectedCount === 1 ? 'lançamento' : 'lançamentos'}
                   </Text>
                 )}
               </Pressable>
@@ -1008,9 +1103,15 @@ export default function InvoiceImportScreen() {
 
             {/* Resumo */}
             <View style={styles.receiptHeroCard}>
-              <Text style={styles.receiptMerchant}>Mercado Extra • 01/10/2026</Text>
-              <Text style={styles.receiptTotal}>R$ 87,40</Text>
-              <Text style={styles.receiptItemCount}>3 itens • confira a extração</Text>
+              <Text style={styles.receiptMerchant}>
+                {documentData?.payment_info?.store_name || selectedFile?.name || 'Cupom Fiscal'}
+              </Text>
+              <Text style={styles.receiptTotal}>
+                {formatCurrency(documentData?.payment_info?.total ?? itemsSum)}
+              </Text>
+              <Text style={styles.receiptItemCount}>
+                {items.length} {items.length === 1 ? 'item' : 'itens'} • confira a extração
+              </Text>
             </View>
 
             {/* Conta de origem */}
@@ -1019,9 +1120,16 @@ export default function InvoiceImportScreen() {
               <Pressable
                 style={styles.fieldInput}
                 onPress={() => {
+                  const accountOptions = Array.isArray(accounts) && accounts.length > 0
+                    ? accounts.map((acc: any) => ({
+                        text: acc.name,
+                        onPress: () => setReceiptAccount(acc.name),
+                      }))
+                    : [
+                        { text: 'Conta corrente', onPress: () => setReceiptAccount('Conta corrente') },
+                      ]
                   Alert.alert('Conta de Origem', 'Selecione a conta para pagamento deste cupom:', [
-                    { text: 'Conta Itaú • Conta corrente', onPress: () => setReceiptAccount('Conta Itaú • Conta corrente') },
-                    { text: 'Nubank • Conta corrente', onPress: () => setReceiptAccount('Nubank • Conta corrente') },
+                    ...accountOptions,
                     { text: 'Cancelar', style: 'cancel' },
                   ])
                 }}
@@ -1030,39 +1138,26 @@ export default function InvoiceImportScreen() {
                 <Ionicons name="chevron-down" size={16} color={darkTheme.textMuted} />
               </Pressable>
               <Text style={styles.fieldHint}>
-                Tipo permitido como fonte de liquidez • saldo R$ 4.200,00.
+                Tipo permitido como fonte de liquidez.
               </Text>
             </View>
 
             {/* Itens do cupom */}
             <View style={styles.itemsListContainer}>
-              <View style={styles.couponItemRow}>
-                <View style={styles.couponItemInfo}>
-                  <Text style={styles.itemTitle}>Arroz 5 kg</Text>
-                  <Text style={styles.itemSubtitle}>Alimentação • categoria sugerida</Text>
+              {items.map((item, idx) => (
+                <View key={item.id}>
+                  {idx > 0 && <View style={styles.itemSeparator} />}
+                  <View style={styles.couponItemRow}>
+                    <View style={styles.couponItemInfo}>
+                      <Text style={styles.itemTitle}>{item.description}</Text>
+                      <Text style={styles.itemSubtitle}>
+                        {item.category} • categoria sugerida
+                      </Text>
+                    </View>
+                    <Text style={styles.itemAmount}>{formatCurrency(item.amount)}</Text>
+                  </View>
                 </View>
-                <Text style={styles.itemAmount}>R$ 29,90</Text>
-              </View>
-
-              <View style={styles.itemSeparator} />
-
-              <View style={styles.couponItemRow}>
-                <View style={styles.couponItemInfo}>
-                  <Text style={styles.itemTitle}>Café 500 g</Text>
-                  <Text style={styles.itemSubtitle}>Alimentação • categoria sugerida</Text>
-                </View>
-                <Text style={styles.itemAmount}>R$ 22,50</Text>
-              </View>
-
-              <View style={styles.itemSeparator} />
-
-              <View style={styles.couponItemRow}>
-                <View style={styles.couponItemInfo}>
-                  <Text style={styles.itemTitle}>Frutas e verduras</Text>
-                  <Text style={styles.itemSubtitle}>Alimentação • categoria sugerida</Text>
-                </View>
-                <Text style={styles.itemAmount}>R$ 35,00</Text>
-              </View>
+              ))}
             </View>
 
             {/* Opções de Rateio / Categoria */}
@@ -1088,8 +1183,11 @@ export default function InvoiceImportScreen() {
             <Pressable
               style={({ pressed }) => [styles.primaryButton, pressed && styles.btnPressed]}
               onPress={() => confirmMutation.mutate()}
+              disabled={confirmMutation.isPending || items.length === 0}
             >
-              <Text style={styles.primaryButtonText}>Confirmar despesa de R$ 87,40</Text>
+              <Text style={styles.primaryButtonText}>
+                Confirmar despesa de {formatCurrency(documentData?.payment_info?.total ?? itemsSum)}
+              </Text>
             </Pressable>
           </View>
         )}
@@ -1106,43 +1204,91 @@ export default function InvoiceImportScreen() {
               </View>
               <Text style={styles.successTitle}>Importação concluída</Text>
               <Text style={styles.successSubtitle}>
-                12 lançamentos foram adicionados à fatura de outubro do Inter
+                {selectedCount} {selectedCount === 1 ? 'lançamento foi adicionado' : 'lançamentos foram adicionados'}
+                {invoiceMonthName ? ` à fatura de ${invoiceMonthName}` : ''}
+                {cardTitle ? ` do ${cardTitle}` : ''}
               </Text>
             </View>
 
             {/* Resumo dos lançamentos processados */}
             <View style={styles.successSummaryCard}>
+              {items.filter((i) => i.selected && i.installmentInfo).length > 0 && (
+                <>
+                  <View style={styles.successSummaryItem}>
+                    <View style={styles.summaryIconBox}>
+                      <Ionicons name="layers-outline" size={20} color="#a78bfa" />
+                    </View>
+                    <View style={styles.summaryItemText}>
+                      <Text style={styles.summaryItemTitle}>
+                        {items.filter((i) => i.selected && i.installmentInfo).length}{' '}
+                        {items.filter((i) => i.selected && i.installmentInfo).length === 1
+                          ? 'parcela vinculada'
+                          : 'parcelas vinculadas'}
+                      </Text>
+                      <Text style={styles.summaryItemDesc}>
+                        {items.find((i) => i.selected && i.installmentInfo)?.description || ''}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.itemSeparator} />
+                </>
+              )}
+
+              {items.filter((i) => i.isPayment).length > 0 && (
+                <>
+                  <View style={styles.successSummaryItem}>
+                    <View style={styles.summaryIconBox}>
+                      <Ionicons name="card-outline" size={20} color="#a78bfa" />
+                    </View>
+                    <View style={styles.summaryItemText}>
+                      <Text style={styles.summaryItemTitle}>
+                        {items.filter((i) => i.isPayment).length}{' '}
+                        {items.filter((i) => i.isPayment).length === 1
+                          ? 'pagamento identificado'
+                          : 'pagamentos identificados'}
+                      </Text>
+                      <Text style={styles.summaryItemDesc}>Fora do resumo de despesas</Text>
+                    </View>
+                  </View>
+                  <View style={styles.itemSeparator} />
+                </>
+              )}
+
+              {items.filter((i) => i.isDuplicate).length > 0 && (
+                <>
+                  <View style={styles.successSummaryItem}>
+                    <View style={styles.summaryIconBox}>
+                      <Ionicons name="copy-outline" size={20} color="#a78bfa" />
+                    </View>
+                    <View style={styles.summaryItemText}>
+                      <Text style={styles.summaryItemTitle}>
+                        {items.filter((i) => i.isDuplicate).length}{' '}
+                        {items.filter((i) => i.isDuplicate).length === 1
+                          ? 'possível duplicado ignorado'
+                          : 'possíveis duplicados ignorados'}
+                      </Text>
+                      <Text style={styles.summaryItemDesc}>
+                        {items.find((i) => i.isDuplicate)?.description || ''}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.itemSeparator} />
+                </>
+              )}
+
               <View style={styles.successSummaryItem}>
                 <View style={styles.summaryIconBox}>
-                  <Ionicons name="layers-outline" size={20} color="#a78bfa" />
+                  <Ionicons name="checkmark-done-outline" size={20} color="#34d399" />
                 </View>
                 <View style={styles.summaryItemText}>
-                  <Text style={styles.summaryItemTitle}>1 parcela vinculada</Text>
-                  <Text style={styles.summaryItemDesc}>Monitor, parcela 2 de 6</Text>
-                </View>
-              </View>
-
-              <View style={styles.itemSeparator} />
-
-              <View style={styles.successSummaryItem}>
-                <View style={styles.summaryIconBox}>
-                  <Ionicons name="card-outline" size={20} color="#a78bfa" />
-                </View>
-                <View style={styles.summaryItemText}>
-                  <Text style={styles.summaryItemTitle}>1 pagamento identificado</Text>
-                  <Text style={styles.summaryItemDesc}>Fora do resumo de despesas</Text>
-                </View>
-              </View>
-
-              <View style={styles.itemSeparator} />
-
-              <View style={styles.successSummaryItem}>
-                <View style={styles.summaryIconBox}>
-                  <Ionicons name="copy-outline" size={20} color="#a78bfa" />
-                </View>
-                <View style={styles.summaryItemText}>
-                  <Text style={styles.summaryItemTitle}>1 possível duplicado ignorado</Text>
-                  <Text style={styles.summaryItemDesc}>Uber de 20/09</Text>
+                  <Text style={styles.summaryItemTitle}>Total confirmado</Text>
+                  <Text style={styles.summaryItemDesc}>
+                    {formatCurrency(
+                      items
+                        .filter((i) => i.selected)
+                        .reduce((acc, curr) => acc + (curr.isPayment ? 0 : curr.amount), 0)
+                    )}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -1222,7 +1368,7 @@ export default function InvoiceImportScreen() {
                 <View style={styles.editField}>
                   <Text style={styles.fieldLabel}>Data da compra</Text>
                   <TextInput
-                    value={editingItem?.date || '15/09/2026'}
+                    value={editingItem?.date || ''}
                     editable={false}
                     style={[styles.editInput, { color: darkTheme.textMuted }]}
                   />
@@ -1239,43 +1385,51 @@ export default function InvoiceImportScreen() {
               </View>
 
               {/* Installment linking option */}
-              <Text style={styles.installmentLinkHeader}>Parcela 2 de 6. Vincular a:</Text>
-
-              <Pressable
-                style={[
-                  styles.installmentOption,
-                  editLinkedInstallment === 'monitor' && styles.installmentOptionActive,
-                ]}
-                onPress={() => setEditLinkedInstallment('monitor')}
-              >
-                <View style={styles.installmentRadio}>
-                  {editLinkedInstallment === 'monitor' && <View style={styles.radioInner} />}
-                </View>
-                <View style={styles.installmentOptionInfo}>
-                  <Text style={styles.installmentOptionTitle}>Monitor</Text>
-                  <Text style={styles.installmentOptionSub}>
-                    6x de R$ 250,00, compra em agosto
+              {Boolean(editingItem?.installmentInfo) && (
+                <>
+                  <Text style={styles.installmentLinkHeader}>
+                    {editingItem?.installmentInfo} Vincular a:
                   </Text>
-                </View>
-              </Pressable>
 
-              <Pressable
-                style={[
-                  styles.installmentOption,
-                  editLinkedInstallment === 'new' && styles.installmentOptionActive,
-                ]}
-                onPress={() => setEditLinkedInstallment('new')}
-              >
-                <View style={styles.installmentRadio}>
-                  {editLinkedInstallment === 'new' && <View style={styles.radioInner} />}
-                </View>
-                <View style={styles.installmentOptionInfo}>
-                  <Text style={styles.installmentOptionTitle}>Criar novo parcelamento</Text>
-                  <Text style={styles.installmentOptionSub}>
-                    Registra as 6 parcelas e as faturas
-                  </Text>
-                </View>
-              </Pressable>
+                  <Pressable
+                    style={[
+                      styles.installmentOption,
+                      editLinkedInstallment === 'monitor' && styles.installmentOptionActive,
+                    ]}
+                    onPress={() => setEditLinkedInstallment('monitor')}
+                  >
+                    <View style={styles.installmentRadio}>
+                      {editLinkedInstallment === 'monitor' && <View style={styles.radioInner} />}
+                    </View>
+                    <View style={styles.installmentOptionInfo}>
+                      <Text style={styles.installmentOptionTitle}>
+                        {editingItem?.linkedInstallment || 'Parcelamento existente'}
+                      </Text>
+                      <Text style={styles.installmentOptionSub}>
+                        {editingItem?.description}
+                      </Text>
+                    </View>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.installmentOption,
+                      editLinkedInstallment === 'new' && styles.installmentOptionActive,
+                    ]}
+                    onPress={() => setEditLinkedInstallment('new')}
+                  >
+                    <View style={styles.installmentRadio}>
+                      {editLinkedInstallment === 'new' && <View style={styles.radioInner} />}
+                    </View>
+                    <View style={styles.installmentOptionInfo}>
+                      <Text style={styles.installmentOptionTitle}>Criar novo parcelamento</Text>
+                      <Text style={styles.installmentOptionSub}>
+                        Registra as parcelas na linha do tempo
+                      </Text>
+                    </View>
+                  </Pressable>
+                </>
+              )}
 
               {/* Family sharing toggle */}
               <View style={styles.familyShareCard}>
