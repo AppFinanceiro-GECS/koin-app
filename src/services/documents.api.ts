@@ -16,9 +16,24 @@ export interface UploadFile {
   file?: any
 }
 
-const appendFile = (formData: FormData, field: string, file: UploadFile) => {
-  if (Platform.OS === 'web' && file.file) {
-    formData.append(field, file.file)
+const appendFile = async (formData: FormData, field: string, file: UploadFile) => {
+  if (Platform.OS === 'web') {
+    if (file.file) {
+      formData.append(field, file.file)
+    } else if (file.uri) {
+      try {
+        const response = await fetch(file.uri)
+        const blob = await response.blob()
+        formData.append(field, blob, file.name || 'document.pdf')
+      } catch (e) {
+        console.warn('[DocumentsAPI] Falha ao converter URI para Blob no web:', e)
+        formData.append(field, {
+          uri: file.uri,
+          name: file.name || 'document.pdf',
+          type: file.type || 'application/pdf',
+        } as unknown as Blob)
+      }
+    }
   } else {
     formData.append(field, {
       uri: file.uri,
@@ -29,31 +44,57 @@ const appendFile = (formData: FormData, field: string, file: UploadFile) => {
 }
 
 export const documentsApi = {
-  upload: (file: UploadFile, password?: string, creditCardId?: number, force: boolean = false) => {
+  upload: async (
+    file: UploadFile,
+    password?: string,
+    creditCardId?: number,
+    force: boolean = false,
+    signal?: AbortSignal
+  ) => {
     const formData = new FormData()
-    appendFile(formData, 'file', file)
+    await appendFile(formData, 'file', file)
     if (password) formData.append('password', password)
     if (creditCardId) formData.append('credit_card_id', creditCardId.toString())
     const url = force ? '/documents?force=true' : '/documents'
+    if (__DEV__) {
+      console.log(`[DocumentsAPI] upload: ${file.name} (${file.type}) force=${force}`)
+    }
     return api.post<DocumentResponse>(url, formData, {
+      signal,
+      timeout: 60_000,
       transformRequest: (data) => data,
     })
   },
   // Upload async: retorna imediatamente com status "processing"
-  uploadAsync: (file: UploadFile, password?: string, creditCardId?: number, force: boolean = false) => {
+  uploadAsync: async (
+    file: UploadFile,
+    password?: string,
+    creditCardId?: number,
+    force: boolean = false,
+    signal?: AbortSignal
+  ) => {
     const formData = new FormData()
-    appendFile(formData, 'file', file)
+    await appendFile(formData, 'file', file)
     if (password) formData.append('password', password)
     if (creditCardId) formData.append('credit_card_id', creditCardId.toString())
     const url = force ? '/documents/async?force=true' : '/documents/async'
+    if (__DEV__) {
+      console.log(`[DocumentsAPI] uploadAsync: ${file.name} (${file.type}) force=${force}`)
+    }
     return api.post<DocumentAsyncUploadResponse>(url, formData, {
+      signal,
+      timeout: 60_000,
       transformRequest: (data) => data,
     })
   },
-  uploadBatch: (files: UploadFile[]) => {
+  uploadBatch: async (files: UploadFile[], signal?: AbortSignal) => {
     const formData = new FormData()
-    files.forEach((file) => appendFile(formData, 'files', file))
+    for (const file of files) {
+      await appendFile(formData, 'files', file)
+    }
     return api.post('/documents/batch', formData, {
+      signal,
+      timeout: 120_000,
       transformRequest: (data) => data,
     })
   },

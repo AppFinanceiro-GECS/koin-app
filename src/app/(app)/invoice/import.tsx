@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isCancel } from 'axios'
 import * as DocumentPicker from 'expo-document-picker'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router, useLocalSearchParams } from 'expo-router'
@@ -167,8 +168,19 @@ export default function InvoiceImportScreen() {
   const [uploadedDocumentId, setUploadedDocumentId] = useState<number | null>(initialDocId)
   const isReadingCancelledRef = useRef(false)
   const isUploadingRef = useRef(false)
+  const uploadAbortControllerRef = useRef<AbortController | null>(null)
+  const uploadSessionIdRef = useRef<number>(0)
   const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null)
   const passwordInputRef = useRef<React.ComponentRef<typeof TextInput>>(null)
+
+  useEffect(() => {
+    return () => {
+      if (uploadAbortControllerRef.current) {
+        uploadAbortControllerRef.current.abort()
+        uploadAbortControllerRef.current = null
+      }
+    }
+  }, [])
 
   const isPdfSelected = Boolean(
     selectedFile &&
@@ -331,12 +343,19 @@ export default function InvoiceImportScreen() {
 
   const handlePickDocument = async () => {
     try {
+      console.log('[Import] Abrindo seletor de arquivos...')
       const res = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'image/jpeg', 'image/png'],
         copyToCacheDirectory: true,
       })
       if (!res.canceled && res.assets && res.assets.length > 0) {
         const asset = res.assets[0]
+        console.log('[Import] Arquivo selecionado:', {
+          name: asset.name,
+          size: asset.size,
+          uri: asset.uri,
+          mimeType: asset.mimeType,
+        })
         const sizeFormatted = asset.size
           ? `${(asset.size / (1024 * 1024)).toFixed(1)} MB`
           : '1,0 MB'
@@ -358,23 +377,41 @@ export default function InvoiceImportScreen() {
         setHasPassword(false)
         setPasswordError(false)
         setPdfPassword('')
+      } else {
+        console.log('[Import] Seleção de arquivo cancelada pelo usuário.')
       }
     } catch (err) {
-      console.warn('Erro ao selecionar arquivo:', err)
+      console.warn('[Import] Erro ao selecionar arquivo:', err)
     }
   }
 
   const handleCancelReading = async () => {
+    console.log('[Import] Usuário cancelou a leitura.')
+    // Invalida a sessão atual para descartar respostas pendentes
+    uploadSessionIdRef.current += 1
     isReadingCancelledRef.current = true
+
+    // Aborta imediatamente a requisição HTTP em trânsito
+    if (uploadAbortControllerRef.current) {
+      console.log('[Import] Abortando upload HTTP em trânsito...')
+      uploadAbortControllerRef.current.abort()
+      uploadAbortControllerRef.current = null
+    }
+
+    // Limpa polling do React Query
+    queryClient.removeQueries({ queryKey: ['document-status'] })
+
     const docId = uploadedDocumentId
     setUploadedDocumentId(null)
     setStep('upload')
 
     if (docId) {
       try {
+        console.log(`[Import] Excluindo documento #${docId} no backend...`)
         await documentsApi.delete(docId)
+        console.log(`[Import] Documento #${docId} excluído com sucesso.`)
       } catch (err) {
-        console.warn('Erro ao excluir documento cancelado:', err)
+        console.warn('[Import] Erro ao excluir documento cancelado no backend:', err)
       }
     }
   }
@@ -391,9 +428,21 @@ export default function InvoiceImportScreen() {
     }
     setPasswordError(false)
     setUploadedDocumentId(null)
+
+    // Cancela upload anterior se ainda estiver em andamento
+    if (uploadAbortControllerRef.current) {
+      console.log('[Import] Abortando upload anterior antes de iniciar novo envio...')
+      uploadAbortControllerRef.current.abort()
+    }
+
+    const currentSessionId = ++uploadSessionIdRef.current
+    const abortController = new AbortController()
+    uploadAbortControllerRef.current = abortController
     isReadingCancelledRef.current = false
     setSimulatedProgress(1)
     setStep('reading')
+
+    console.log(`[Import] Iniciando upload #${currentSessionId}: ${selectedFile.name} (force=${force})`)
 
     try {
       isUploadingRef.current = true
@@ -409,29 +458,48 @@ export default function InvoiceImportScreen() {
         uploadFile,
         trimmedPassword ? trimmedPassword : undefined,
         activeCard?.id,
-        force
+        force,
+        abortController.signal
       )
       isUploadingRef.current = false
 
-      // Se o usuário cancelou a leitura enquanto o upload ainda estava em trânsito
-      if (isReadingCancelledRef.current) {
+      // Se a sessão foi cancelada ou substituída enquanto o upload estava em trânsito
+      if (
+        currentSessionId !== uploadSessionIdRef.current ||
+        abortController.signal.aborted ||
+        isReadingCancelledRef.current
+      ) {
+        console.log(
+          `[Import] Upload #${currentSessionId} completou mas foi cancelado. Excluindo documento órfão #${res.data.id}...`
+        )
         try {
           await documentsApi.delete(res.data.id)
+          console.log(`[Import] Documento órfão #${res.data.id} excluído com sucesso.`)
         } catch (e) {
-          console.warn('Erro ao excluir upload cancelado:', e)
+          console.warn('[Import] Erro ao excluir upload cancelado:', e)
         }
         return
       }
 
+      console.log(`[Import] Upload #${currentSessionId} sucesso! Documento ID: ${res.data.id}`)
       setUploadedDocumentId(res.data.id)
     } catch (err: unknown) {
       isUploadingRef.current = false
-      if (isReadingCancelledRef.current) {
+
+      // Ignora erro se este upload foi cancelado ou abortado intencionalmente
+      if (
+        currentSessionId !== uploadSessionIdRef.current ||
+        abortController.signal.aborted ||
+        isReadingCancelledRef.current ||
+        isCancel(err)
+      ) {
+        console.log(`[Import] Upload #${currentSessionId} cancelado pelo usuário. Silenciando erro.`)
         return
       }
 
       const dupId = getDuplicateDocumentId(err)
       if (dupId) {
+        console.log(`[Import] Documento duplicado detectado (ID=${dupId}).`)
         Alert.alert(
           'Arquivo já recebido',
           'Este documento já foi enviado anteriormente. Deseja reprocessar com IA para testar novamente ou ver os dados existentes?',
@@ -463,6 +531,7 @@ export default function InvoiceImportScreen() {
       const status = errObj?.response?.status
       const detail = errObj?.response?.data?.detail
       if (status === 422 && detail?.error === 'password_required') {
+        console.log(`[Import] Upload #${currentSessionId}: PDF protegido por senha.`)
         setHasPassword(true)
         setPasswordError(true)
         setStep('upload')
@@ -477,7 +546,12 @@ export default function InvoiceImportScreen() {
         return
       }
 
-      console.warn('Upload API error:', err)
+      console.warn(`[Import] Upload #${currentSessionId} falhou com erro:`, {
+        message: (err as any)?.message,
+        code: (err as any)?.code,
+        status: (err as any)?.response?.status,
+        data: (err as any)?.response?.data,
+      })
       Alert.alert('Erro no envio', 'Não foi possível ler o documento no momento. Tente novamente.')
       setStep('upload')
     }

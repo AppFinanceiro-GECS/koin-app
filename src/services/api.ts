@@ -1,4 +1,4 @@
-import axios, { create, type AxiosError, type InternalAxiosRequestConfig } from 'axios'
+import axios, { create, isCancel, type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 
 import { API_BASE_URL } from '@/lib/config'
 import { isTokenExpired } from '@/lib/jwt'
@@ -85,5 +85,34 @@ api.interceptors.response.use(
     return api(original)
   },
 )
+
+if (__DEV__) {
+  api.interceptors.request.use((config) => {
+    const method = config.method?.toUpperCase() || 'GET'
+    const fullUrl = `${config.baseURL || ''}${config.url || ''}`
+    console.log(`[API ➔] ${method} ${fullUrl}`)
+    return config
+  })
+
+  api.interceptors.response.use(
+    (response) => {
+      const method = response.config.method?.toUpperCase() || 'GET'
+      console.log(`[API ✓] ${response.status} ${method} ${response.config.url}`)
+      return response
+    },
+    (error: AxiosError) => {
+      if (isCancel(error)) {
+        console.log(`[API ✋] Cancelado: ${error.config?.method?.toUpperCase()} ${error.config?.url}`)
+        return Promise.reject(error)
+      }
+      const status = error.response?.status ? `${error.response.status}` : 'NETWORK_ERROR'
+      console.warn(`[API ✗] ${status} ${error.config?.method?.toUpperCase()} ${error.config?.url}: ${error.message}`, {
+        code: error.code,
+        data: error.response?.data,
+      })
+      return Promise.reject(error)
+    }
+  )
+}
 
 export default api
