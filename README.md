@@ -42,6 +42,7 @@ A URL em uso aparece na aba **Perfil**. Para forçar outra: `cp .env.example .en
 | `npm run lint` | ESLint (eslint-config-expo) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run doctor` | expo-doctor (dependências e config) |
+| `npm run api:types` | gera `src/types/openapi.gen.ts` a partir do `/openapi.json` da hml (outra URL: `KOIN_OPENAPI_URL=...`). O CI avisa quando está desatualizado |
 
 ## Testar a homologação no celular (equipe e cliente)
 
@@ -77,7 +78,8 @@ src/
   services/               clientes da API por domínio (vieram do web; api.ts faz o refresh do JWT)
   stores/                 Zustand (authStore: tokens no Keychain/Keystore via expo-secure-store)
   lib/                    config da API, formatação, erros, JWT
-  types/api.ts            tipos espelhando os schemas do koin-api
+  types/schemas.ts        tipos gerados do OpenAPI do koin-api (use Schemas['Nome'] em código novo)
+  types/api.ts            tipos escritos à mão (legado; migrando para os gerados)
   schemas/, data/         validações zod e dados estáticos (bancos, bandeiras) herdados do web
   theme/                  cores e espaçamentos da marca
 docs/

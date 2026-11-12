@@ -1,5 +1,7 @@
-// Espelho dos schemas Pydantic do koin-api usados pelo app.
-// Mudou um schema lá? Atualize aqui.
+import type { Schemas } from './schemas'
+
+// Espelho dos schemas Pydantic do koin-api usados pelo app, escrito à mão.
+// Tipos novos: use os gerados do OpenAPI (Schemas, em ./schemas.ts) em vez de escrever aqui.
 
 export interface Token {
   access_token: string
@@ -278,49 +280,11 @@ export interface HouseholdMember {
 }
 
 /** koin-api: GET /family/split — quem pagou o quê e quem deve a quem no mês */
-export interface FamilySplitMember {
-  member_id: number
-  user_id: number
-  name: string
-  is_me: boolean
-  share_percent: number
-  paid: number
-  expenses_count: number
-  fair_share: number
-  settled_out: number
-  settled_in: number
-  /** > 0 tem a receber; < 0 tem a pagar */
-  balance: number
-}
-
-export interface FamilyTransfer {
-  from_user_id: number
-  from_name: string
-  to_user_id: number
-  to_name: string
-  amount: number
-}
-
-export interface FamilySettlement {
-  id: number
-  from_user_id: number
-  to_user_id: number
-  amount: number
-  note: string | null
-  created_at: string
-}
-
-export interface FamilySplit {
-  year: number
-  month: number
-  total: number
-  split_mode: 'equal' | 'custom'
-  is_settled: boolean
-  members: FamilySplitMember[]
-  transfers: FamilyTransfer[]
-  categories: { name: string; amount: number }[]
-  settlements: FamilySettlement[]
-}
+// Divisão da família: gerados do OpenAPI (npm run api:types)
+export type FamilySplitMember = Schemas['FamilySplitMember']
+export type FamilyTransfer = Schemas['FamilyTransfer']
+export type FamilySettlement = Schemas['FamilySettlementResponse']
+export type FamilySplit = Schemas['FamilySplitResponse']
 
 export interface FamilyContext {
   license_id: number
