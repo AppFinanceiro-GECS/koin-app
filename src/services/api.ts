@@ -8,7 +8,6 @@ import type { Token } from '@/types/api'
 const api = create({
   baseURL: API_BASE_URL,
   timeout: 30_000,
-  headers: { 'Content-Type': 'application/json' },
 })
 
 // Rotas públicas: não recebem Authorization nem disparam refresh
@@ -44,6 +43,22 @@ async function refreshAccessToken(): Promise<string> {
 }
 
 api.interceptors.request.use(async (config) => {
+  // Permite que o FormData gere o header multipart com boundary dinâmico no React Native e Web
+  const isFormData =
+    config.data instanceof FormData ||
+    (config.data && typeof (config.data as any).append === 'function')
+
+  if (isFormData) {
+    if (config.headers && typeof config.headers.set === 'function') {
+      config.headers.set('Content-Type', false)
+    } else if (config.headers) {
+      delete (config.headers as Record<string, unknown>)['Content-Type']
+      delete (config.headers as Record<string, unknown>)['content-type']
+    }
+    // Evita que transformRequest padrão do Axios tente serializar FormData como JSON
+    config.transformRequest = (data) => data
+  }
+
   if (isPublicRoute(config.url)) return config
 
   let { accessToken } = useAuthStore.getState()
@@ -53,19 +68,6 @@ api.interceptors.request.use(async (config) => {
     accessToken = await refreshAccessToken()
   }
   config.headers.Authorization = `Bearer ${accessToken}`
-
-  // Permite que o FormData gere o header multipart com boundary dinâmico
-  const isFormData =
-    config.data instanceof FormData ||
-    (config.data && typeof (config.data as any).append === 'function')
-
-  if (isFormData) {
-    if (config.headers && typeof config.headers.delete === 'function') {
-      config.headers.delete('Content-Type')
-    } else if (config.headers) {
-      delete config.headers['Content-Type']
-    }
-  }
 
   return config
 })

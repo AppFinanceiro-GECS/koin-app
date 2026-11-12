@@ -62,6 +62,7 @@ export const documentsApi = {
     return api.post<DocumentResponse>(url, formData, {
       signal,
       timeout: 60_000,
+      headers: { 'Content-Type': false as unknown as string },
       transformRequest: (data) => data,
     })
   },
@@ -84,6 +85,7 @@ export const documentsApi = {
     return api.post<DocumentAsyncUploadResponse>(url, formData, {
       signal,
       timeout: 60_000,
+      headers: { 'Content-Type': false as unknown as string },
       transformRequest: (data) => data,
     })
   },
@@ -95,6 +97,7 @@ export const documentsApi = {
     return api.post('/documents/batch', formData, {
       signal,
       timeout: 120_000,
+      headers: { 'Content-Type': false as unknown as string },
       transformRequest: (data) => data,
     })
   },
