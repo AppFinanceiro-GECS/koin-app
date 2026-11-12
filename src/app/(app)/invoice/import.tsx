@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { getDuplicateDocumentId } from '@/lib/documents'
 import { getApiErrorMessage } from '@/lib/errors'
 import { formatCurrency, monthLabel } from '@/lib/format'
+import { HouseCardToggle } from '@/components/family/HouseCardToggle'
 import { InvoiceCardBanner } from '@/components/invoices/InvoiceCardBanner'
 import { InvoicePaymentReview, type InvoicePaidResult } from '@/components/invoices/InvoicePaymentReview'
 import { ReceiptCardBanner } from '@/components/invoices/ReceiptCardBanner'
@@ -655,7 +656,10 @@ export default function InvoiceImportScreen() {
             is_installment: Boolean(i.installmentInfo),
             installment_current: i.installmentCurrent ?? (i.installmentInfo ? 1 : undefined),
             installment_total: i.installmentTotal ?? (i.installmentInfo ? 1 : undefined),
-            ownership_type: (i.shareWithFamily ? 'household' : 'personal') as 'personal' | 'household',
+            // cartão da casa: tudo entra na divisão (a API também garante)
+            ownership_type: (i.shareWithFamily || reviewCard.ownership_type === 'household' ? 'household' : 'personal') as
+              | 'personal'
+              | 'household',
           }))
         if (batchItems.length === 0) throw new Error('Selecione ao menos um lançamento.')
 
@@ -1292,6 +1296,13 @@ export default function InvoiceImportScreen() {
               onAdjust={handleAdjustCardFromInvoice}
               creating={creatingCard}
             />
+
+            {reviewCard && (
+              <HouseCardToggle
+                card={reviewCard}
+                onChange={(household) => setItems((prev) => prev.map((i) => ({ ...i, shareWithFamily: household })))}
+              />
+            )}
 
             {/* Card Conferência */}
             <View style={styles.conferenceCard}>
