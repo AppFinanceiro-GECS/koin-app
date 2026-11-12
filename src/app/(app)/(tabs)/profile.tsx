@@ -193,6 +193,13 @@ export default function ProfileScreen() {
           />
           <View style={styles.divider} />
           <MenuItem
+            icon="play-circle"
+            title="Rever tutorial"
+            subtitle="Como o Koin funciona, em 4 passos"
+            onPress={() => router.push('/onboarding' as any)}
+          />
+          <View style={styles.divider} />
+          <MenuItem
             icon="shield"
             title="Privacidade e dados"
             subtitle="Exportar dados e excluir conta"

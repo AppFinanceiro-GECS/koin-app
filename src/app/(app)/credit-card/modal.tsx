@@ -58,7 +58,16 @@ function ModalHeader({ title }: { title: string }) {
 }
 
 export default function CreditCardModal() {
-  const params = useLocalSearchParams<{ id?: string }>()
+  // id: edita um cartão; sem id, os demais campos pré-preenchem um cartão novo (ex.: lido da fatura)
+  const params = useLocalSearchParams<{
+    id?: string
+    name?: string
+    digits?: string
+    brand?: string
+    limit?: string
+    closingDay?: string
+    dueDay?: string
+  }>()
   const parsedId = params.id ? Number(params.id) : NaN
   const cardId = Number.isNaN(parsedId) ? null : parsedId
 
@@ -100,6 +109,7 @@ export default function CreditCardModal() {
       key={cardQuery.data?.id ?? 'novo'}
       cardId={cardId}
       card={cardQuery.data}
+      prefill={cardId === null ? params : undefined}
       refetchCard={async () => {
         await cardQuery.refetch()
       }}
@@ -110,21 +120,25 @@ export default function CreditCardModal() {
 function CreditCardForm({
   cardId,
   card,
+  prefill,
   refetchCard,
 }: {
   cardId: number | null
   card: CreditCardDetail | undefined
+  prefill?: { name?: string; digits?: string; brand?: string; limit?: string; closingDay?: string; dueDay?: string }
   refetchCard: () => Promise<void>
 }) {
   const isEditing = cardId !== null
   const queryClient = useQueryClient()
 
-  const [name, setName] = useState(card?.nickname || card?.account_name || '')
-  const [digits, setDigits] = useState(card?.last_four_digits || '')
-  const [brand, setBrand] = useState<string | null>(card?.card_brand ?? null)
-  const [limit, setLimit] = useState(card ? limitToInput(Number(card.credit_limit) || 0) : '')
-  const [closingDay, setClosingDay] = useState(card ? String(card.closing_day) : '')
-  const [dueDay, setDueDay] = useState(card ? String(card.due_day) : '')
+  const [name, setName] = useState(card?.nickname || card?.account_name || prefill?.name || '')
+  const [digits, setDigits] = useState(card?.last_four_digits || prefill?.digits || '')
+  const [brand, setBrand] = useState<string | null>(card?.card_brand ?? prefill?.brand ?? null)
+  const [limit, setLimit] = useState(
+    card ? limitToInput(Number(card.credit_limit) || 0) : prefill?.limit ? limitToInput(Number(prefill.limit) || 0) : ''
+  )
+  const [closingDay, setClosingDay] = useState(card ? String(card.closing_day) : prefill?.closingDay || '')
+  const [dueDay, setDueDay] = useState(card ? String(card.due_day) : prefill?.dueDay || '')
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState(false)
 

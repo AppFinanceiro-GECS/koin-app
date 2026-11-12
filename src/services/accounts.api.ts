@@ -15,6 +15,9 @@ export const creditCardsApi = {
   create: (data: CreditCardWrite) => api.post<CreditCardDetail>('/credit-cards', data),
   update: (id: number, data: CreditCardWrite) =>
     api.patch<CreditCardDetail>(`/credit-cards/${id}`, data),
+  // Cadastra o cartão com os dados da fatura lida; se um cartão já bate, devolve ele
+  createFromDocument: (documentId: number) =>
+    api.post<CreditCardDetail>(`/credit-cards/from-document/${documentId}`),
   // Sem force, cartão com lançamentos/faturas devolve 409 (CreditCardLinkedData)
   delete: (id: number, options?: { force?: boolean }) =>
     api.delete(`/credit-cards/${id}`, { params: options?.force ? { force: true } : {} }),
