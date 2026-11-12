@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isCancel } from 'axios'
 import * as DocumentPicker from 'expo-document-picker'
+import * as ImagePicker from 'expo-image-picker'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useRef, useState } from 'react'
@@ -9,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -51,6 +53,27 @@ interface ExtractedTransactionItem {
   shareWithFamily: boolean
 }
 
+/** Mensagem do envio que falhou: a da API quando ela explica (415, 413, 429), senão a causa provável */
+const uploadErrorMessage = (err: unknown): string => {
+  const e = err as {
+    code?: string
+    response?: { status?: number; data?: { detail?: unknown; message?: string } }
+  }
+  const status = e?.response?.status
+  const detail = e?.response?.data?.detail
+  if (typeof detail === 'string' && status && status < 500) return detail
+  if (detail && typeof detail === 'object' && typeof (detail as { message?: unknown }).message === 'string') {
+    return (detail as { message: string }).message
+  }
+  if (status === 413) return 'Arquivo muito grande. Envie um arquivo de até 10 MB.'
+  if (status === 415) return 'Tipo de arquivo não suportado. Envie PDF, foto (JPEG, PNG, HEIC) ou planilha.'
+  if (status === 429) return 'Muitos envios seguidos. Aguarde um minuto e tente de novo.'
+  if (!e?.response || e?.code === 'ECONNABORTED' || (status && status >= 502)) {
+    return 'Não conseguimos falar com o servidor. Confira sua conexão e tente de novo em instantes.'
+  }
+  return 'Não foi possível enviar o documento agora. Tente novamente.'
+}
+
 const getInvoiceMonthName = (month?: number | null) => {
   if (!month) return ''
   const months = [
@@ -69,75 +92,6 @@ const getInvoiceMonthName = (month?: number | null) => {
   ]
   return months[month - 1] || ''
 }
-
-const INITIAL_EXTRACTED_ITEMS: ExtractedTransactionItem[] = [
-  {
-    id: 1,
-    description: 'Pagamento recebido',
-    date: '05/09',
-    category: 'Pagamento de fatura',
-    amount: -980.0,
-    isPayment: true,
-    installmentInfo: undefined,
-    selected: true,
-    isPending: true,
-    shareWithFamily: false,
-  },
-  {
-    id: 2,
-    description: 'Loja Tech 02/06',
-    date: '15/09',
-    category: 'Eletrônicos (sugerido)',
-    amount: 250.0,
-    installmentInfo: 'Parcela 2 de 6. Toque para vincular.',
-    linkedInstallment: 'Monitor',
-    selected: true,
-    isPending: true,
-    shareWithFamily: false,
-  },
-  {
-    id: 3,
-    description: 'Uber *Trip',
-    date: '20/09',
-    category: 'Transporte',
-    amount: 32.9,
-    isDuplicate: true,
-    installmentInfo: undefined,
-    selected: false,
-    isPending: true,
-    shareWithFamily: false,
-  },
-  {
-    id: 4,
-    description: 'Posto Shell',
-    date: '12/09',
-    category: 'Transporte (sugerido)',
-    amount: 210.0,
-    selected: true,
-    isPending: false,
-    shareWithFamily: false,
-  },
-  {
-    id: 5,
-    description: 'Supermercado Extra',
-    date: '10/09',
-    category: 'Alimentação',
-    amount: 185.4,
-    selected: true,
-    isPending: false,
-    shareWithFamily: true,
-  },
-  {
-    id: 6,
-    description: 'Farmácia São Paulo',
-    date: '08/09',
-    category: 'Saúde',
-    amount: 72.1,
-    selected: true,
-    isPending: false,
-    shareWithFamily: false,
-  },
-]
 
 export default function InvoiceImportScreen() {
   const insets = useSafeAreaInsets()
@@ -301,11 +255,9 @@ export default function InvoiceImportScreen() {
         } else {
           setItems([])
         }
-        if (documentData.document_type === 'cupom_fiscal') {
-          setDocType('receipt')
-        } else {
-          setDocType('invoice')
-        }
+        // Só fatura de cartão vai para a revisão por cartão; nota, cupom, boleto e
+        // comprovante são despesas de uma conta
+        setDocType(documentData.document_type === 'fatura_cartao' ? 'invoice' : 'receipt')
         if (documentData.card_info?.card_name) {
           setSelectedCard(documentData.card_info.card_name)
         } else if (documentData.card_info?.card_bank) {
@@ -323,17 +275,29 @@ export default function InvoiceImportScreen() {
       }, 700)
       return () => clearTimeout(timer)
     } else if (documentData.status === 'failed' || documentData.stage === 'failed') {
+      // A mensagem vem do catálogo da API (ex.: not_financial_document, no_items_found)
+      const title =
+        documentData.error_code === 'not_financial_document'
+          ? 'Não é uma fatura ou nota'
+          : documentData.error_code === 'no_items_found'
+          ? 'Nenhum lançamento encontrado'
+          : 'Não conseguimos ler o arquivo'
+      const backToUpload = () => {
+        setUploadedDocumentId(null)
+        setSelectedFile(null)
+        setStep('upload')
+      }
       Alert.alert(
-        'Falha no processamento',
+        title,
         documentData.error_message ||
-          'Não conseguimos extrair os lançamentos deste arquivo. Deseja revisar os dados de exemplo?',
+          'Não conseguimos extrair os lançamentos deste arquivo. Tente outro arquivo ou lance manualmente.',
         [
-          { text: 'Voltar', style: 'cancel', onPress: () => setStep('upload') },
+          { text: 'Enviar outro', style: 'cancel', onPress: backToUpload },
           {
-            text: 'Ver exemplo',
+            text: 'Lançar manualmente',
             onPress: () => {
-              setItems(INITIAL_EXTRACTED_ITEMS)
-              setStep('review')
+              backToUpload()
+              router.push('/transaction/new')
             },
           },
         ]
@@ -341,11 +305,82 @@ export default function InvoiceImportScreen() {
     }
   }, [documentData, step])
 
+  const selectAsset = (asset: {
+    name: string
+    size?: number | null
+    uri: string
+    mimeType?: string | null
+    file?: unknown
+  }) => {
+    const isPdf = asset.mimeType === 'application/pdf' || asset.name.toLowerCase().endsWith('.pdf')
+    setSelectedFile({
+      name: asset.name,
+      size: asset.size ? `${(asset.size / (1024 * 1024)).toFixed(1)} MB` : 'Foto',
+      uri: asset.uri,
+      mimeType: asset.mimeType || (isPdf ? 'application/pdf' : 'image/jpeg'),
+      isProtected: false,
+      file: asset.file,
+    })
+    setDocType(isPdf ? 'invoice' : 'receipt')
+    setHasPassword(false)
+    setPasswordError(false)
+    setPdfPassword('')
+  }
+
+  const pickImage = async (source: 'camera' | 'library') => {
+    try {
+      const permission =
+        source === 'camera'
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync()
+      if (!permission.granted) {
+        Alert.alert(
+          source === 'camera' ? 'Câmera bloqueada' : 'Fotos bloqueadas',
+          source === 'camera'
+            ? 'Permita o acesso à câmera para fotografar a fatura ou nota fiscal.'
+            : 'Permita o acesso às fotos para escolher a imagem da fatura ou nota fiscal.',
+          [
+            { text: 'Agora não', style: 'cancel' },
+            { text: 'Abrir ajustes', onPress: () => Linking.openSettings() },
+          ]
+        )
+        return
+      }
+      const options: ImagePicker.ImagePickerOptions = {
+        mediaTypes: ['images'],
+        // a API reduz para 2000 px; 0.8 mantém o texto legível com arquivo pequeno
+        quality: 0.8,
+        exif: false,
+      }
+      const res =
+        source === 'camera'
+          ? await ImagePicker.launchCameraAsync(options)
+          : await ImagePicker.launchImageLibraryAsync(options)
+      if (res.canceled || !res.assets?.length) return
+      const asset = res.assets[0]
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')
+      selectAsset({
+        name: asset.fileName || `${source === 'camera' ? 'scan' : 'foto'}-${stamp}.jpg`,
+        size: asset.fileSize,
+        uri: asset.uri,
+        mimeType: asset.mimeType || 'image/jpeg',
+        file: (asset as { file?: unknown }).file,
+      })
+    } catch (err) {
+      console.warn('[Import] Erro ao abrir câmera/fotos:', err)
+      Alert.alert(
+        source === 'camera' ? 'Câmera indisponível' : 'Fotos indisponíveis',
+        'Não foi possível abrir agora. Escolha o arquivo pelo botão Arquivos.'
+      )
+    }
+  }
+
   const handlePickDocument = async () => {
     try {
       console.log('[Import] Abrindo seletor de arquivos...')
       const res = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'image/jpeg', 'image/png'],
+        // HEIC/WEBP do iPhone também: a API converte para JPEG
+        type: ['application/pdf', 'image/*'],
         copyToCacheDirectory: true,
       })
       if (!res.canceled && res.assets && res.assets.length > 0) {
@@ -353,30 +388,9 @@ export default function InvoiceImportScreen() {
         console.log('[Import] Arquivo selecionado:', {
           name: asset.name,
           size: asset.size,
-          uri: asset.uri,
           mimeType: asset.mimeType,
         })
-        const sizeFormatted = asset.size
-          ? `${(asset.size / (1024 * 1024)).toFixed(1)} MB`
-          : '1,0 MB'
-        setSelectedFile({
-          name: asset.name,
-          size: sizeFormatted,
-          uri: asset.uri,
-          mimeType:
-            asset.mimeType ||
-            (asset.name.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
-          isProtected: false,
-          file: (asset as any).file,
-        })
-        if (asset.name.endsWith('.pdf')) {
-          setDocType('invoice')
-        } else {
-          setDocType('receipt')
-        }
-        setHasPassword(false)
-        setPasswordError(false)
-        setPdfPassword('')
+        selectAsset({ ...asset, file: (asset as { file?: unknown }).file })
       } else {
         console.log('[Import] Seleção de arquivo cancelada pelo usuário.')
       }
@@ -552,7 +566,7 @@ export default function InvoiceImportScreen() {
         status: (err as any)?.response?.status,
         data: (err as any)?.response?.data,
       })
-      Alert.alert('Erro no envio', 'Não foi possível ler o documento no momento. Tente novamente.')
+      Alert.alert('Erro no envio', uploadErrorMessage(err))
       setStep('upload')
     }
   }
@@ -909,12 +923,48 @@ export default function InvoiceImportScreen() {
                 <Ionicons name="cloud-upload-outline" size={28} color="#a78bfa" />
               </View>
               <Text style={styles.uploadTitle}>
-                {selectedFile ? selectedFile.name : 'Escolher PDF, foto ou câmera'}
+                {selectedFile ? selectedFile.name : 'Escolher PDF ou arquivo'}
               </Text>
               <Text style={styles.uploadSubtitle}>
-                {selectedFile ? `${selectedFile.size} • Toque para alterar` : 'Fatura em PDF ou foto, até 10 MB'}
+                {selectedFile
+                  ? `${selectedFile.size} • Toque para alterar`
+                  : 'Fatura, nota fiscal ou boleto, até 10 MB'}
               </Text>
             </Pressable>
+
+            <View style={styles.sourceRow}>
+              {Platform.OS !== 'web' && (
+                <Pressable
+                  style={[styles.sourceButton, styles.sourceButtonPrimary]}
+                  onPress={() => pickImage('camera')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Escanear com a câmera"
+                >
+                  <Ionicons name="camera-outline" size={20} color="#fff" />
+                  <Text style={[styles.sourceButtonText, styles.sourceButtonTextPrimary]}>
+                    Escanear
+                  </Text>
+                </Pressable>
+              )}
+              <Pressable
+                style={styles.sourceButton}
+                onPress={() => pickImage('library')}
+                accessibilityRole="button"
+                accessibilityLabel="Escolher foto da galeria"
+              >
+                <Ionicons name="images-outline" size={20} color="#a78bfa" />
+                <Text style={styles.sourceButtonText}>Fotos</Text>
+              </Pressable>
+              <Pressable
+                style={styles.sourceButton}
+                onPress={handlePickDocument}
+                accessibilityRole="button"
+                accessibilityLabel="Escolher arquivo"
+              >
+                <Ionicons name="document-outline" size={20} color="#a78bfa" />
+                <Text style={styles.sourceButtonText}>Arquivos</Text>
+              </Pressable>
+            </View>
 
             {/* Info Box */}
             <View style={styles.infoBox}>
@@ -1014,7 +1064,7 @@ export default function InvoiceImportScreen() {
                 <Ionicons name="sparkles" size={26} color="#a78bfa" />
               </View>
               <Text style={styles.readingTitle}>
-                {docType === 'receipt' ? 'Lendo seu cupom' : 'Lendo sua fatura'}
+                {docType === 'receipt' ? 'Lendo seu documento' : 'Lendo sua fatura'}
               </Text>
               <Text style={styles.readingSubtitle}>
                 {documentData?.extracted_items && documentData.extracted_items.length > 0
@@ -1816,6 +1866,36 @@ const styles = StyleSheet.create({
     fontFamily: 'Geist',
     color: '#a7a1b7',
     textAlign: 'center',
+  },
+  sourceRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  sourceButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.35)',
+    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+  },
+  sourceButtonPrimary: {
+    backgroundColor: '#7c3aed',
+    borderColor: '#7c3aed',
+  },
+  sourceButtonText: {
+    fontSize: 14,
+    fontFamily: 'Geist',
+    fontWeight: '600',
+    color: '#a78bfa',
+  },
+  sourceButtonTextPrimary: {
+    color: '#fff',
   },
   // Info & Password
   infoBox: {
