@@ -7,7 +7,9 @@ import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -165,6 +167,14 @@ export default function InvoiceImportScreen() {
   const [uploadedDocumentId, setUploadedDocumentId] = useState<number | null>(initialDocId)
   const isReadingCancelledRef = useRef(false)
   const isUploadingRef = useRef(false)
+  const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null)
+  const passwordInputRef = useRef<React.ComponentRef<typeof TextInput>>(null)
+
+  const isPdfSelected = Boolean(
+    selectedFile &&
+      (selectedFile.mimeType?.includes('pdf') ||
+        selectedFile.name?.toLowerCase().endsWith('.pdf'))
+  )
 
   // Reading state
   const [simulatedProgress, setSimulatedProgress] = useState(1)
@@ -347,6 +357,7 @@ export default function InvoiceImportScreen() {
         }
         setHasPassword(false)
         setPasswordError(false)
+        setPdfPassword('')
       }
     } catch (err) {
       console.warn('Erro ao selecionar arquivo:', err)
@@ -393,9 +404,10 @@ export default function InvoiceImportScreen() {
         file: selectedFile.file,
       }
       const activeCard = cards?.find((c: { id: number; name?: string }) => c.name === selectedCard)
+      const trimmedPassword = pdfPassword.trim()
       const res = await documentsApi.uploadAsync(
         uploadFile,
-        hasPassword ? pdfPassword : undefined,
+        trimmedPassword ? trimmedPassword : undefined,
         activeCard?.id,
         force
       )
@@ -454,6 +466,10 @@ export default function InvoiceImportScreen() {
         setHasPassword(true)
         setPasswordError(true)
         setStep('upload')
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true })
+          passwordInputRef.current?.focus()
+        }, 150)
         Alert.alert(
           'Senha do PDF',
           'O documento está protegido por senha. Por favor informe a senha para continuar.'
@@ -593,7 +609,9 @@ export default function InvoiceImportScreen() {
   const nonPendingCount = items.length - pendingCount
 
   const invoiceHeaderTitle =
-    items.length === 1
+    items.length === 0
+      ? `Nenhum lançamento encontrado${invoiceMonthName ? ` na fatura de ${invoiceMonthName}` : ' na fatura'}${cardTitle ? ` do ${cardTitle}` : ''}`
+      : items.length === 1
       ? `1 lançamento encontrado${invoiceMonthName ? ` na fatura de ${invoiceMonthName}` : ' na fatura'}${cardTitle ? ` do ${cardTitle}` : ''}`
       : `${items.length} lançamentos encontrados${invoiceMonthName ? ` na fatura de ${invoiceMonthName}` : ' na fatura'}${cardTitle ? ` do ${cardTitle}` : ''}`
 
@@ -721,10 +739,18 @@ export default function InvoiceImportScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 52 + insets.top : 0}
       >
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 48 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
         {/* ──────────────────────────────────────────────────────────────────────── */}
         {/* STEP 1: ENVIAR (163:1358 e 163:1665) */}
         {/* ──────────────────────────────────────────────────────────────────────── */}
@@ -825,19 +851,31 @@ export default function InvoiceImportScreen() {
             </View>
 
             {/* Password input / test */}
-            {(hasPassword || selectedFile?.isProtected) && (
+            {(isPdfSelected || hasPassword || selectedFile?.isProtected) && (
               <View style={styles.passwordCard}>
-                <Text style={styles.fieldLabel}>Senha do PDF</Text>
+                <View style={styles.passwordHeaderRow}>
+                  <Ionicons name="lock-closed-outline" size={16} color="#a78bfa" />
+                  <Text style={styles.passwordHeaderLabel}>
+                    {hasPassword ? 'Senha do PDF (necessária)' : 'Senha do PDF (se houver)'}
+                  </Text>
+                </View>
                 <TextInput
+                  ref={passwordInputRef}
                   value={pdfPassword}
                   onChangeText={(val) => {
                     setPdfPassword(val)
                     setPasswordError(false)
                   }}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollToEnd({ animated: true })
+                    }, 150)
+                  }}
                   secureTextEntry
-                  placeholder="••••••"
+                  placeholder={hasPassword ? 'Digite a senha do PDF' : 'Digite a senha caso o arquivo seja protegido'}
                   placeholderTextColor={darkTheme.textMuted}
                   style={[styles.passwordInput, passwordError && styles.inputErrorBorder]}
+                  returnKeyType="done"
                 />
                 {passwordError && (
                   <View style={styles.errorAlertContainer}>
@@ -997,105 +1035,151 @@ export default function InvoiceImportScreen() {
             </View>
 
             {/* Filter Tabs: Pendências vs Todos */}
-            <View style={styles.reviewTabsRow}>
-              <Pressable
-                style={[styles.tabChip, reviewFilter === 'pending' && styles.tabChipActive]}
-                onPress={() => setReviewFilter('pending')}
-              >
-                <Text style={[styles.tabChipText, reviewFilter === 'pending' && styles.tabChipTextActive]}>
-                  Pendências ({pendingCount})
-                </Text>
-              </Pressable>
+            {items.length > 0 && (
+              <View style={styles.reviewTabsRow}>
+                <Pressable
+                  style={[styles.tabChip, reviewFilter === 'pending' && styles.tabChipActive]}
+                  onPress={() => setReviewFilter('pending')}
+                >
+                  <Text style={[styles.tabChipText, reviewFilter === 'pending' && styles.tabChipTextActive]}>
+                    Pendências ({pendingCount})
+                  </Text>
+                </Pressable>
 
-              <Pressable
-                style={[styles.tabChip, reviewFilter === 'all' && styles.tabChipActive]}
-                onPress={() => setReviewFilter('all')}
-              >
-                <Text style={[styles.tabChipText, reviewFilter === 'all' && styles.tabChipTextActive]}>
-                  Todos ({items.length})
-                </Text>
-              </Pressable>
-            </View>
+                <Pressable
+                  style={[styles.tabChip, reviewFilter === 'all' && styles.tabChipActive]}
+                  onPress={() => setReviewFilter('all')}
+                >
+                  <Text style={[styles.tabChipText, reviewFilter === 'all' && styles.tabChipTextActive]}>
+                    Todos ({items.length})
+                  </Text>
+                </Pressable>
+              </View>
+            )}
 
             {/* List of Extracted Items */}
-            <View style={styles.itemsListContainer}>
-              {filteredItems.map((item, idx) => (
-                <View key={item.id}>
-                  {idx > 0 && <View style={styles.itemSeparator} />}
-                  <Pressable
-                    style={({ pressed }) => [styles.itemRow, pressed && styles.rowPressed]}
-                    onPress={() => handleOpenEdit(item)}
-                  >
+            {items.length > 0 ? (
+              <View style={styles.itemsListContainer}>
+                {filteredItems.map((item, idx) => (
+                  <View key={item.id}>
+                    {idx > 0 && <View style={styles.itemSeparator} />}
                     <Pressable
-                      style={styles.checkboxTouchable}
-                      onPress={() => handleToggleItemSelection(item.id)}
+                      style={({ pressed }) => [styles.itemRow, pressed && styles.rowPressed]}
+                      onPress={() => handleOpenEdit(item)}
                     >
-                      <View style={[styles.checkbox, item.selected && styles.checkboxSelected]}>
-                        {item.selected && <Ionicons name="checkmark" size={14} color="#ffffff" />}
+                      <Pressable
+                        style={styles.checkboxTouchable}
+                        onPress={() => handleToggleItemSelection(item.id)}
+                      >
+                        <View style={[styles.checkbox, item.selected && styles.checkboxSelected]}>
+                          {item.selected && <Ionicons name="checkmark" size={14} color="#ffffff" />}
+                        </View>
+                      </Pressable>
+
+                      <View style={styles.itemCenter}>
+                        <Text style={styles.itemTitle}>{item.description}</Text>
+                        <Text style={styles.itemSubtitle}>
+                          {item.date}, {item.category}
+                        </Text>
+                        {Boolean(item.installmentInfo) && (
+                          <Text style={styles.itemHighlightHint}>{item.installmentInfo}</Text>
+                        )}
+                        {item.isPayment && (
+                          <Text style={styles.itemPaymentHint}>
+                            Pagamento de fatura: fica fora das despesas.
+                          </Text>
+                        )}
+                        {item.isDuplicate && (
+                          <Text style={styles.itemDuplicateHint}>
+                            Possível duplicado de um lançamento manual.
+                          </Text>
+                        )}
                       </View>
-                    </Pressable>
 
-                    <View style={styles.itemCenter}>
-                      <Text style={styles.itemTitle}>{item.description}</Text>
-                      <Text style={styles.itemSubtitle}>
-                        {item.date}, {item.category}
+                      <Text
+                        style={[
+                          styles.itemAmount,
+                          item.amount < 0 ? styles.itemAmountNegative : styles.itemAmountDefault,
+                        ]}
+                      >
+                        {item.amount < 0 ? `– R$ ${Math.abs(item.amount).toFixed(2).replace('.', ',')}` : formatCurrency(item.amount)}
                       </Text>
-                      {Boolean(item.installmentInfo) && (
-                        <Text style={styles.itemHighlightHint}>{item.installmentInfo}</Text>
-                      )}
-                      {item.isPayment && (
-                        <Text style={styles.itemPaymentHint}>
-                          Pagamento de fatura: fica fora das despesas.
-                        </Text>
-                      )}
-                      {item.isDuplicate && (
-                        <Text style={styles.itemDuplicateHint}>
-                          Possível duplicado de um lançamento manual.
-                        </Text>
-                      )}
-                    </View>
-
-                    <Text
-                      style={[
-                        styles.itemAmount,
-                        item.amount < 0 ? styles.itemAmountNegative : styles.itemAmountDefault,
-                      ]}
-                    >
-                      {item.amount < 0 ? `– R$ ${Math.abs(item.amount).toFixed(2).replace('.', ',')}` : formatCurrency(item.amount)}
-                    </Text>
-                  </Pressable>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyStateCard}>
+                <View style={styles.emptyStateIconContainer}>
+                  <Ionicons name="document-text-outline" size={32} color="#a78bfa" />
                 </View>
-              ))}
-            </View>
+                <Text style={styles.emptyStateTitle}>Nenhum lançamento identificado</Text>
+                <Text style={styles.emptyStateText}>
+                  A IA leu o arquivo, mas não encontrou transações ou despesas nesta fatura. Verifique se o arquivo está correto ou tente enviar outro documento.
+                </Text>
+              </View>
+            )}
 
-            {reviewFilter === 'pending' && nonPendingCount > 0 ? (
+            {reviewFilter === 'pending' && nonPendingCount > 0 && items.length > 0 && (
               <Text style={styles.extraItemsNote}>
                 Mais {nonPendingCount} {nonPendingCount === 1 ? 'item sem pendências' : 'itens sem pendências'}
               </Text>
-            ) : items.length === 0 ? (
-              <Text style={styles.extraItemsNote}>Nenhum lançamento identificado no arquivo.</Text>
-            ) : null}
+            )}
 
             {/* Confirmation Footer */}
             <View style={styles.reviewFooter}>
-              <Text style={styles.selectedCountText}>
-                {selectedCount} de {items.length} {items.length === 1 ? 'selecionado' : 'selecionados'}
-              </Text>
-              <Text style={styles.nothingSavedNote}>Nada é salvo antes de confirmar</Text>
+              {items.length === 0 ? (
+                <>
+                  <Pressable
+                    style={({ pressed }) => [styles.primaryButton, pressed && styles.btnPressed]}
+                    onPress={() => {
+                      setSelectedFile(null)
+                      setUploadedDocumentId(null)
+                      setPdfPassword('')
+                      setHasPassword(false)
+                      setPasswordError(false)
+                      setStep('upload')
+                    }}
+                  >
+                    <Ionicons name="cloud-upload-outline" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                    <Text style={styles.primaryButtonText}>Escolher outro arquivo</Text>
+                  </Pressable>
 
-              <Pressable
-                style={({ pressed }) => [styles.primaryButton, pressed && styles.btnPressed]}
-                onPress={() => confirmMutation.mutate()}
-                disabled={confirmMutation.isPending || selectedCount === 0}
-              >
-                {confirmMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text style={styles.primaryButtonText}>
-                    Confirmar {selectedCount} {selectedCount === 1 ? 'lançamento' : 'lançamentos'}
+                  <Pressable
+                    style={({ pressed }) => [styles.secondaryButton, { marginTop: 10 }, pressed && styles.btnPressed]}
+                    onPress={() => router.back()}
+                  >
+                    <Text style={styles.secondaryButtonText}>Voltar ao início</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.selectedCountText}>
+                    {selectedCount} de {items.length} {items.length === 1 ? 'selecionado' : 'selecionados'}
                   </Text>
-                )}
-              </Pressable>
+                  <Text style={styles.nothingSavedNote}>Nada é salvo antes de confirmar</Text>
+
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.primaryButton,
+                      selectedCount === 0 && styles.disabledButton,
+                      pressed && styles.btnPressed,
+                    ]}
+                    onPress={() => confirmMutation.mutate()}
+                    disabled={confirmMutation.isPending || selectedCount === 0}
+                  >
+                    {confirmMutation.isPending ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : (
+                      <Text style={styles.primaryButtonText}>
+                        {selectedCount === 0
+                          ? 'Selecione ao menos 1 lançamento'
+                          : `Confirmar ${selectedCount} ${selectedCount === 1 ? 'lançamento' : 'lançamentos'}`}
+                      </Text>
+                    )}
+                  </Pressable>
+                </>
+              )}
             </View>
           </View>
         )}
@@ -1191,15 +1275,41 @@ export default function InvoiceImportScreen() {
               </Text>
             </View>
 
-            <Pressable
-              style={({ pressed }) => [styles.primaryButton, pressed && styles.btnPressed]}
-              onPress={() => confirmMutation.mutate()}
-              disabled={confirmMutation.isPending || items.length === 0}
-            >
-              <Text style={styles.primaryButtonText}>
-                Confirmar despesa de {formatCurrency(documentData?.payment_info?.total ?? itemsSum)}
-              </Text>
-            </Pressable>
+            {items.length === 0 ? (
+              <>
+                <Pressable
+                  style={({ pressed }) => [styles.primaryButton, pressed && styles.btnPressed]}
+                  onPress={() => {
+                    setSelectedFile(null)
+                    setUploadedDocumentId(null)
+                    setPdfPassword('')
+                    setHasPassword(false)
+                    setPasswordError(false)
+                    setStep('upload')
+                  }}
+                >
+                  <Ionicons name="cloud-upload-outline" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                  <Text style={styles.primaryButtonText}>Escolher outro arquivo</Text>
+                </Pressable>
+
+                <Pressable
+                  style={({ pressed }) => [styles.secondaryButton, { marginTop: 10 }, pressed && styles.btnPressed]}
+                  onPress={() => router.back()}
+                >
+                  <Text style={styles.secondaryButtonText}>Voltar ao início</Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                style={({ pressed }) => [styles.primaryButton, pressed && styles.btnPressed]}
+                onPress={() => confirmMutation.mutate()}
+                disabled={confirmMutation.isPending}
+              >
+                <Text style={styles.primaryButtonText}>
+                  Confirmar despesa de {formatCurrency(documentData?.payment_info?.total ?? itemsSum)}
+                </Text>
+              </Pressable>
+            )}
           </View>
         )}
 
@@ -1331,6 +1441,7 @@ export default function InvoiceImportScreen() {
           </View>
         )}
       </ScrollView>
+    </KeyboardAvoidingView>
 
       {/* ──────────────────────────────────────────────────────────────────────── */}
       {/* BOTTOM SHEET: EDITAR ITEM DA FATURA (163:1522 / 163:1578) */}
@@ -1474,6 +1585,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#080512',
+  },
+  flex: {
+    flex: 1,
   },
   header: {
     height: 52,
@@ -1654,6 +1768,17 @@ const styles = StyleSheet.create({
     borderColor: '#2b233c',
     padding: 16,
     gap: 10,
+  },
+  passwordHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  passwordHeaderLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#cbd5e1',
+    fontFamily: 'Geist',
   },
   passwordInput: {
     height: 48,
@@ -2137,6 +2262,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
+    flexDirection: 'row',
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  emptyStateCard: {
+    backgroundColor: '#120e1e',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#2b233c',
+    padding: 24,
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 12,
+  },
+  emptyStateIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(124, 58, 237, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyStateTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#f8fafc',
+    fontFamily: 'Geist',
+    textAlign: 'center',
+  },
+  emptyStateText: {
+    fontSize: 13,
+    color: '#94a3b8',
+    fontFamily: 'Geist',
+    textAlign: 'center',
+    lineHeight: 18,
   },
   primaryButtonText: {
     fontSize: 15,
