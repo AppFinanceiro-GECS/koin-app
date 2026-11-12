@@ -478,10 +478,45 @@ export interface CardMatch {
 }
 
 /** GET /invoices/outlook: parcelas já compradas por mês de fatura */
+export interface InvoiceOutlookItem {
+  series_id: number
+  description: string
+  installment_number: number
+  installment_count: number
+  amount: number
+}
+
+export interface InvoiceOutlookCardMonth {
+  /** null: parcelas fora de cartão */
+  credit_card_id: number | null
+  total: number
+  installments_count: number
+  items: InvoiceOutlookItem[]
+}
+
+export interface InvoiceOutlookMonth {
+  year: number
+  month: number
+  total: number
+  installments_count: number
+  /** ausente em versões antigas da API */
+  by_card?: InvoiceOutlookCardMonth[]
+}
+
+export interface InvoiceOutlookCard {
+  credit_card_id: number | null
+  name: string
+  bank_id: string | null
+  card_brand: string | null
+  last_four_digits: string | null
+  total: number
+}
+
 export interface InvoiceOutlook {
   scope: 'me' | 'family'
-  months: { year: number; month: number; total: number; installments_count: number }[]
+  months: InvoiceOutlookMonth[]
   total: number
+  cards?: InvoiceOutlookCard[]
 }
 
 export interface DocumentAsyncUploadResponse {

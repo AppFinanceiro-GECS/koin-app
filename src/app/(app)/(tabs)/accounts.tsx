@@ -1,5 +1,4 @@
 import Feather from '@expo/vector-icons/Feather'
-import { Ionicons } from '@expo/vector-icons'
 import { useQuery } from '@tanstack/react-query'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
@@ -14,6 +13,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { BankCardTile } from '@/components/BankCardTile'
 import { creditCardLabel } from '@/lib/creditCards'
 import { getApiErrorMessage } from '@/lib/errors'
 import { formatCurrency } from '@/lib/format'
@@ -190,77 +190,22 @@ export default function AccountsScreen() {
                 </Text>
               </View>
             ) : cards.length > 0 ? (
-              cards.map((card, idx) => {
-                const title = creditCardLabel(card)
-                const subtitle = `Fecha dia ${card.closing_day}, vence dia ${card.due_day}`
-                const limit = Number(card.credit_limit) || 0
-                const used = Math.max(Number(card.current_balance) || 0, 0)
-                const available = Math.max(Number(card.available_limit) || 0, 0)
-                const percentage = limit > 0 ? Math.min((used / limit) * 100, 100) : 0
-                const inactive = card.is_active === false
-
-                return (
-                  <Pressable
-                    key={String(card.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Faturas do cartão ${title}`}
+              cards.map((card) => (
+                <View key={String(card.id)} style={{ marginBottom: 14 }}>
+                  <BankCardTile
+                    card={card}
                     onPress={() =>
                       router.push({
                         pathname: '/invoices',
-                        params: { creditCardId: String(card.id), creditCardName: title },
+                        params: { creditCardId: String(card.id), creditCardName: creditCardLabel(card) },
                       } as any)
                     }
-                    style={({ pressed }) => [pressed && styles.buttonPressed, inactive && styles.cardInactive, { marginBottom: 14 }]}
-                  >
-                    <LinearGradient
-                      colors={idx === 0 && !inactive ? ['#0f0b1e', '#1f0c3b', '#0a0414'] : ['#120e1e', '#120e1e']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={idx === 0 && !inactive ? styles.cardGradient : styles.darkCard}
-                    >
-                      <View style={styles.cardHeaderRow}>
-                        <View style={styles.cardHeader}>
-                          <Text style={styles.cardTitle}>{title}</Text>
-                          <Text style={styles.cardSubtitle}>
-                            {inactive ? 'Desativado · ' : ''}
-                            {subtitle}
-                          </Text>
-                        </View>
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel={`Editar ou excluir ${title}`}
-                          hitSlop={10}
-                          onPress={(e) => {
-                            e.stopPropagation()
-                            router.push({ pathname: '/credit-card/modal', params: { id: String(card.id) } } as any)
-                          }}
-                          style={({ pressed }) => [styles.editButton, pressed && styles.buttonPressed]}
-                        >
-                          <Ionicons name="pencil" size={16} color="#a855f7" />
-                        </Pressable>
-                      </View>
-
-                      <View style={styles.invoiceRow}>
-                        <View style={styles.invoiceCol}>
-                          <Text style={styles.invoiceLabel}>Faturas em aberto</Text>
-                          {used > 0 && <Text style={styles.statusBadgePurple}>A pagar</Text>}
-                        </View>
-                        <Text style={styles.invoiceValue}>{formatCurrency(used)}</Text>
-                      </View>
-
-                      {/* Barra de Limite */}
-                      <View style={styles.progressSection}>
-                        <View style={styles.progressTrack}>
-                          <View style={[styles.progressFill, { width: `${percentage}%` }]} />
-                        </View>
-                        <Text style={styles.limitText}>
-                          Limite disponível: {formatCurrency(available)} de {formatCurrency(limit)}
-                        </Text>
-                      </View>
-                    </LinearGradient>
-                  </Pressable>
-                )
-              })
+                    onEdit={() =>
+                      router.push({ pathname: '/credit-card/modal', params: { id: String(card.id) } } as any)
+                    }
+                  />
+                </View>
+              ))
             ) : (
               <View style={styles.emptyCardBox}>
                 <Feather name="credit-card" size={32} color={darkTheme.textSecondary} />
