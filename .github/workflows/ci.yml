@@ -40,6 +40,28 @@ jobs:
       - name: Export bundles (Android + iOS)
         run: npx expo export --platform android --platform ios --output-dir dist
 
+  # Tipos gerados do OpenAPI da hml (koin-api#54): avisa quando src/types/openapi.gen.ts está
+  # atrás da API. Só aviso, não bloqueia: a hml pode estar à frente da branch do PR.
+  api-types:
+    name: Tipos da API (OpenAPI)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Gerar tipos a partir da hml
+        run: npm run api:types
+      - name: Comparar com o commitado
+        run: |
+          if ! git diff --quiet -- src/types/openapi.gen.ts; then
+            echo "::warning title=Tipos da API desatualizados::Rode 'npm run api:types' e commite src/types/openapi.gen.ts"
+            git diff --stat -- src/types/openapi.gen.ts
+          fi
+
   # EAS Update: o app de homologação (APK/Expo Go) recebe a versão nova ao abrir, sem build novo.
   # main -> canal preview (API de hml), prod -> canal production. PR -> branch pr-N com QR code no PR.
   # Só JS e assets; mudou código nativo ou o SDK? Precisa de build novo (eas build). Ver README.
