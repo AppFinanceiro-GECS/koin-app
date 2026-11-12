@@ -129,6 +129,8 @@ export type PaymentMethod =
 
 export interface Transaction {
   id: number
+  /** quem lançou (na família, quem pagou a despesa da casa) */
+  user_id?: number | null
   type: TransactionType
   payment_method: PaymentMethod | null
   amount: number | string
@@ -269,6 +271,53 @@ export interface HouseholdMember {
   can_edit_shared: boolean
   can_invite_members: boolean
   can_see_all: boolean
+  /** parte nas despesas da casa (%); null = divisão igual */
+  share_percent?: number | null
+}
+
+/** koin-api: GET /family/split — quem pagou o quê e quem deve a quem no mês */
+export interface FamilySplitMember {
+  member_id: number
+  user_id: number
+  name: string
+  is_me: boolean
+  share_percent: number
+  paid: number
+  expenses_count: number
+  fair_share: number
+  settled_out: number
+  settled_in: number
+  /** > 0 tem a receber; < 0 tem a pagar */
+  balance: number
+}
+
+export interface FamilyTransfer {
+  from_user_id: number
+  from_name: string
+  to_user_id: number
+  to_name: string
+  amount: number
+}
+
+export interface FamilySettlement {
+  id: number
+  from_user_id: number
+  to_user_id: number
+  amount: number
+  note: string | null
+  created_at: string
+}
+
+export interface FamilySplit {
+  year: number
+  month: number
+  total: number
+  split_mode: 'equal' | 'custom'
+  is_settled: boolean
+  members: FamilySplitMember[]
+  transfers: FamilyTransfer[]
+  categories: { name: string; amount: number }[]
+  settlements: FamilySettlement[]
 }
 
 export interface FamilyContext {

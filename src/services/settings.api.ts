@@ -1,6 +1,6 @@
 import api from './api'
 import type { AppNotification, NotificationSummary, UnreadCountResponse } from '../types/notification'
-import type { FamilyContext, FamilyInviteResponse } from '../types/api'
+import type { FamilyContext, FamilyInviteResponse, FamilySplit } from '../types/api'
 
 export const adminApi = {
   // Dashboard
@@ -52,6 +52,17 @@ export const familyApi = {
   listInvitations: () => api.get('/family/invitations'),
   cancelInvitation: (id: number) => api.delete(`/family/invitations/${id}`),
   resendInvitation: (id: number) => api.post(`/family/invitations/${id}/resend`),
+
+  // Entrar com o código do convite, já tendo conta
+  join: (code: string) => api.post<FamilyContext>('/family/join', { code }),
+
+  // Divisão das despesas da casa e acertos
+  split: (year: number, month: number) => api.get<FamilySplit>('/family/split', { params: { year, month } }),
+  settle: (data: { to_user_id: number; amount: number; year: number; month: number; from_user_id?: number }) =>
+    api.post<FamilySplit>('/family/settlements', data),
+  undoSettlement: (id: number) => api.delete(`/family/settlements/${id}`),
+  updateShares: (shares: { member_id: number; share_percent: number }[]) =>
+    api.put<FamilyContext>('/family/shares', { shares }),
 }
 
 export const notificationsApi = {

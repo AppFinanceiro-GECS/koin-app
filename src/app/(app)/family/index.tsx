@@ -3,7 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { ScreenHeader } from '@/components/ScreenHeader'
+import { FamilySplitCard } from '@/components/family/FamilySplitCard'
 import { getApiErrorMessage } from '@/lib/errors'
 import { familyDisplayName, memberFirstName } from '@/lib/family'
 import { formatCurrency, formatDate, monthName, toISODate } from '@/lib/format'
@@ -66,8 +67,15 @@ function memberRoleLabel(member: HouseholdMember, currentUserId?: number): strin
 export default function FamilyScreen() {
   const queryClient = useQueryClient()
   const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1
+  // mês exibido: começa no atual e navega para trás e para a frente
+  const [period, setPeriod] = useState({ year: now.getFullYear(), month: now.getMonth() + 1 })
+  const { year, month } = period
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1
+  const shiftMonth = (delta: number) =>
+    setPeriod(({ year: y, month: m }) => {
+      const index = y * 12 + (m - 1) + delta
+      return { year: Math.floor(index / 12), month: (index % 12) + 1 }
+    })
   const currentUserId = useAuthStore((s) => s.user?.id)
 
   const familyQuery = useQuery({
@@ -96,19 +104,26 @@ export default function FamilyScreen() {
     enabled: familyQuery.isSuccess,
   })
 
+  const splitQuery = useQuery({
+    queryKey: ['family', 'split', year, month],
+    queryFn: async () => (await familyApi.split(year, month)).data,
+    enabled: familyQuery.isSuccess,
+  })
+
   const family = familyQuery.data
   const shared = sharedQuery.data
-  const sharedTotal = useMemo(
-    () => (shared ?? []).reduce((sum, t) => sum + Number(t.amount), 0),
-    [shared]
+  const splitNames = useMemo(
+    () => new Map((splitQuery.data?.members ?? []).map((m) => [m.user_id, m.name])),
+    [splitQuery.data]
   )
 
   const canInvite = Boolean(family?.can_invite) && (family?.member_count ?? 0) < (family?.max_members ?? 0)
 
-  const refreshing = familyQuery.isRefetching || sharedQuery.isRefetching
+  const refreshing = familyQuery.isRefetching || sharedQuery.isRefetching || splitQuery.isRefetching
   const onRefresh = () => {
     familyQuery.refetch()
     sharedQuery.refetch()
+    splitQuery.refetch()
   }
 
   // A API responde 403 quando a conta ainda não está vinculada a uma família.
@@ -194,6 +209,15 @@ export default function FamilyScreen() {
               </>
             )}
           </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/family/join')}
+            style={({ pressed }) => [styles.joinButton, pressed && styles.pressed]}
+          >
+            <Feather name="key" size={16} color={darkTheme.accent} />
+            <Text style={styles.joinText}>Tenho um código de convite</Text>
+          </Pressable>
         </ScrollView>
       ) : familyQuery.isError || !family ? (
         <View style={styles.stateBox}>
@@ -254,25 +278,44 @@ export default function FamilyScreen() {
             </View>
           </View>
 
-          {/* Compartilhado no mês */}
-          <LinearGradient
-            colors={['#0f0b1e', '#1f0c3b', '#0a0414']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.totalCard}
-          >
-            <Text style={styles.totalLabel}>Compartilhado em {monthName(month)}</Text>
-            <Text style={styles.totalValue}>{formatCurrency(sharedTotal)}</Text>
-            {/* TODO: a API ainda não divide lançamentos entre membros nem calcula saldo/acerto. */}
-            <Text style={styles.totalHint}>Divisão entre membros em breve</Text>
-            <View
+          {/* Sozinho na família: pode entrar na de outra pessoa */}
+          {family.member_count === 1 && (
+            <Pressable
               accessibilityRole="button"
-              accessibilityState={{ disabled: true }}
-              style={styles.settleButton}
+              onPress={() => router.push('/family/join')}
+              style={({ pressed }) => [styles.joinInline, pressed && styles.pressed]}
             >
-              <Text style={styles.settleText}>Acertar</Text>
-            </View>
-          </LinearGradient>
+              <Feather name="key" size={16} color={darkTheme.accent} />
+              <Text style={styles.joinText}>Foi convidado para outra família? Entrar com o código</Text>
+            </Pressable>
+          )}
+
+          {/* Mês */}
+          <View style={styles.monthNav}>
+            <Pressable accessibilityLabel="Mês anterior" hitSlop={10} onPress={() => shiftMonth(-1)}>
+              <Feather name="chevron-left" size={22} color={darkTheme.text} />
+            </Pressable>
+            <Text style={styles.monthText}>
+              {monthName(month).charAt(0).toUpperCase() + monthName(month).slice(1)} {year}
+            </Text>
+            <Pressable
+              accessibilityLabel="Próximo mês"
+              hitSlop={10}
+              disabled={isCurrentMonth}
+              onPress={() => shiftMonth(1)}
+            >
+              <Feather name="chevron-right" size={22} color={isCurrentMonth ? darkTheme.textMuted : darkTheme.text} />
+            </Pressable>
+          </View>
+
+          {/* Quem pagou o quê e quem deve a quem */}
+          <FamilySplitCard
+            split={splitQuery.data}
+            loading={splitQuery.isLoading}
+            error={splitQuery.error}
+            isOwner={Boolean(family.is_owner)}
+            onRetry={() => splitQuery.refetch()}
+          />
 
           {/* Lançamentos com a tag Família */}
           <Text style={styles.sectionTitle}>Lançamentos com a tag Família</Text>
@@ -299,6 +342,7 @@ export default function FamilyScreen() {
                     </Text>
                     <Text numberOfLines={1} style={styles.rowSubtitle}>
                       {t.category_name ?? 'Sem categoria'} · {formatDate(t.date).slice(0, 5)}
+                      {t.user_id && splitNames.get(t.user_id) ? ` · pago por ${splitNames.get(t.user_id)}` : ''}
                     </Text>
                   </View>
                   <Text style={styles.rowAmount}>{formatCurrency(t.amount)}</Text>
@@ -313,6 +357,31 @@ export default function FamilyScreen() {
 }
 
 const styles = StyleSheet.create({
+  joinButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 14,
+    paddingVertical: 12,
+  },
+  joinInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: darkTheme.border,
+  },
+  joinText: { color: darkTheme.accent, fontWeight: '600', fontSize: 14, flexShrink: 1 },
+  monthNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
+  },
+  monthText: { fontSize: 16, fontWeight: '600', color: darkTheme.text },
   container: {
     flex: 1,
     backgroundColor: darkTheme.background,
