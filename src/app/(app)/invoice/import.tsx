@@ -25,8 +25,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { getDuplicateDocumentId } from '@/lib/documents'
 import { getApiErrorMessage } from '@/lib/errors'
-import { formatCurrency } from '@/lib/format'
+import { formatCurrency, monthLabel } from '@/lib/format'
 import { InvoiceCardBanner } from '@/components/invoices/InvoiceCardBanner'
+import { InvoicePaymentReview, type InvoicePaidResult } from '@/components/invoices/InvoicePaymentReview'
+import { ReceiptCardBanner } from '@/components/invoices/ReceiptCardBanner'
 import { activeCreditCards, creditCardLabel, invalidateCreditCardQueries } from '@/lib/creditCards'
 import { accountsApi, creditCardsApi } from '@/services/accounts.api'
 import { documentsApi } from '@/services/documents.api'
@@ -115,6 +117,12 @@ export default function InvoiceImportScreen() {
   // Cartão escolhido ou cadastrado na revisão
   const [reviewCardId, setReviewCardId] = useState<number | null>(null)
   const [creatingCard, setCreatingCard] = useState(false)
+  // Comprovante de compra: cartão escolhido (final repetido) e "não foi no cartão"
+  const [receiptCardId, setReceiptCardId] = useState<number | null>(null)
+  const [receiptUseCard, setReceiptUseCard] = useState(true)
+  // Comprovante de pagamento de fatura: lançar como despesa comum e o resultado do pagamento
+  const [paymentAsExpense, setPaymentAsExpense] = useState(false)
+  const [paidResult, setPaidResult] = useState<InvoicePaidResult | null>(null)
   const [selectedInvoice, setSelectedInvoice] = useState('Mês lido da própria fatura')
   const [selectedFile, setSelectedFile] = useState<{
     name: string
@@ -195,7 +203,8 @@ export default function InvoiceImportScreen() {
 
   const receiptAccount =
     userReceiptAccount ??
-    (Array.isArray(accounts) && accounts.length > 0 ? accounts[0].name : 'Conta Itaú • Conta corrente')
+    (Array.isArray(accounts) ? accounts.find((a) => a.type !== 'credit_card')?.name : undefined) ??
+    'Conta corrente'
 
   // Acompanhamento do processamento do documento real no backend (#37 / #57)
   const { data: documentData } = useQuery({
@@ -663,6 +672,32 @@ export default function InvoiceImportScreen() {
       } else {
         const activeItems = items.filter((i) => i.selected)
         if (activeItems.length === 0) throw new Error('Selecione ao menos um item.')
+
+        if (receiptCard) {
+          // compra no cartão: entra na conta do cartão e a API acha a fatura pela data
+          const res = await transactionsApi.batchConfirm({
+            items: activeItems.map((ci) => ({
+              document_id: uploadedDocumentId || undefined,
+              account_id: receiptCard.account_id,
+              credit_card_id: receiptCard.id,
+              payment_method: 'credit_card' as const,
+              amount: Math.abs(ci.amount),
+              date: ci.rawDate || today,
+              description: ci.description,
+              merchant_name: documentData?.payment_info?.store_name || ci.description,
+              ownership_type: (ci.shareWithFamily || receiptShareFamily ? 'household' : 'personal') as
+                | 'personal'
+                | 'household',
+            })),
+          } as any)
+          const result = res.data as { error_count?: number; success_count?: number; results?: { error?: string | null }[] }
+          if (result?.error_count && !result.success_count) {
+            throw new Error(result.results?.find((r) => r.error)?.error || 'Nenhum lançamento foi salvo.')
+          }
+          await invalidateCreditCardQueries(queryClient)
+          return
+        }
+
         if (!receiptAccountId) throw new Error('Cadastre uma conta para registrar esta despesa.')
 
         for (const ci of activeItems) {
@@ -705,6 +740,52 @@ export default function InvoiceImportScreen() {
     activeCards.find((c) => cardMatch?.status === 'matched' && c.id === cardMatch.credit_card_id) ??
     activeCards.find((c) => c.id === selectedCardId) ??
     (suggestedDigits ? activeCards.find((c) => c.last_four_digits === suggestedDigits) : undefined)
+
+  // Comprovantes: pagamento de fatura liga à fatura; compra com final vai para o cartão
+  const isInvoicePayment =
+    documentData?.document_type === 'comprovante_fatura' && Boolean(documentData?.invoice_payment) && !paymentAsExpense
+  const receiptDigits =
+    documentData?.document_type === 'comprovante_fatura'
+      ? null
+      : cardMatch?.suggestion?.last_four_digits ?? documentData?.payment_card?.card_last_digits ?? null
+  const receiptCardFound =
+    activeCards.find((c) => c.id === receiptCardId) ??
+    (docType === 'receipt' && cardMatch?.status === 'matched'
+      ? activeCards.find((c) => c.id === cardMatch.credit_card_id)
+      : undefined) ??
+    // cadastrado agora pelo "Cadastrar o cartão final 1234?"
+    (receiptDigits && cardMatch?.status === 'unregistered'
+      ? activeCards.find((c) => c.last_four_digits === receiptDigits)
+      : undefined)
+  const receiptCard = docType === 'receipt' && receiptUseCard ? receiptCardFound : undefined
+  const plainAccountList = (Array.isArray(accounts) ? accounts : []).filter((a) => a.type !== 'credit_card')
+  const offerReceiptCard =
+    docType === 'receipt' && !receiptCardFound && cardMatch?.status === 'unregistered' && Boolean(receiptDigits)
+
+  const handleRegisterReceiptCard = () => {
+    const s = cardMatch?.suggestion
+    router.push({
+      pathname: '/credit-card/modal',
+      params: {
+        name: s?.name ?? '',
+        digits: s?.last_four_digits ?? receiptDigits ?? '',
+        brand: s?.card_brand ?? '',
+      },
+    } as any)
+  }
+
+  const resetToUpload = () => {
+    setSelectedFile(null)
+    setUploadedDocumentId(null)
+    setPdfPassword('')
+    setHasPassword(false)
+    setPasswordError(false)
+    setPaymentAsExpense(false)
+    setPaidResult(null)
+    setReceiptCardId(null)
+    setReceiptUseCard(true)
+    setStep('upload')
+  }
 
   const handleCreateCardFromInvoice = async () => {
     if (!uploadedDocumentId) return
@@ -882,9 +963,13 @@ export default function InvoiceImportScreen() {
           {step === 'review'
             ? docType === 'invoice'
               ? 'Revisar lançamentos'
-              : 'Revisar cupom'
+              : isInvoicePayment
+              ? 'Pagamento de fatura'
+              : 'Revisar comprovante'
             : step === 'completed'
-            ? 'Importação concluída'
+            ? paidResult
+              ? 'Pagamento registrado'
+              : 'Importação concluída'
             : 'Importar fatura'}
         </Text>
 
@@ -1381,7 +1466,22 @@ export default function InvoiceImportScreen() {
         {/* ──────────────────────────────────────────────────────────────────────── */}
         {/* STEP 3 (VARIANT): REVISAR CUPOM FISCAL (163:1700) */}
         {/* ──────────────────────────────────────────────────────────────────────── */}
-        {step === 'review' && docType === 'receipt' && (
+        {step === 'review' && docType === 'receipt' && isInvoicePayment && documentData?.invoice_payment && (
+          <View style={styles.stepWrapper}>
+            <InvoicePaymentReview
+              payment={documentData.invoice_payment}
+              accounts={plainAccountList}
+              onPaid={(result) => {
+                setPaidResult(result)
+                setStep('completed')
+              }}
+              onAsExpense={() => setPaymentAsExpense(true)}
+              onSendInvoice={resetToUpload}
+            />
+          </View>
+        )}
+
+        {step === 'review' && docType === 'receipt' && !isInvoicePayment && (
           <View style={styles.stepWrapper}>
             {/* Status pill */}
             <View style={styles.receiptStatusBadge}>
@@ -1391,7 +1491,10 @@ export default function InvoiceImportScreen() {
             {/* Resumo */}
             <View style={styles.receiptHeroCard}>
               <Text style={styles.receiptMerchant}>
-                {documentData?.payment_info?.store_name || selectedFile?.name || 'Cupom Fiscal'}
+                {documentData?.payment_info?.store_name ||
+                  (items.length === 1 ? items[0].description : null) ||
+                  selectedFile?.name ||
+                  'Cupom Fiscal'}
               </Text>
               <Text style={styles.receiptTotal}>
                 {formatCurrency(documentData?.payment_info?.total ?? itemsSum)}
@@ -1401,14 +1504,29 @@ export default function InvoiceImportScreen() {
               </Text>
             </View>
 
-            {/* Conta de origem */}
+            <ReceiptCardBanner
+              match={cardMatch}
+              cards={activeCards}
+              card={receiptCardFound}
+              digits={receiptDigits}
+              useCard={receiptUseCard}
+              onUseCard={setReceiptUseCard}
+              onSelect={(id) => {
+                setReceiptCardId(id)
+                setReceiptUseCard(true)
+              }}
+              onRegister={handleRegisterReceiptCard}
+            />
+
+            {/* Conta de origem (compra no cartão vai para a conta do cartão) */}
+            {!receiptCard && (
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Conta de origem</Text>
               <Pressable
                 style={styles.fieldInput}
                 onPress={() => {
-                  const accountOptions = Array.isArray(accounts) && accounts.length > 0
-                    ? accounts.map((acc: any) => ({
+                  const accountOptions = plainAccountList.length > 0
+                    ? plainAccountList.map((acc: any) => ({
                         text: acc.name,
                         onPress: () => setReceiptAccount(acc.name),
                       }))
@@ -1428,6 +1546,7 @@ export default function InvoiceImportScreen() {
                 Tipo permitido como fonte de liquidez.
               </Text>
             </View>
+            )}
 
             {/* Itens do cupom */}
             <View style={styles.itemsListContainer}>
@@ -1500,7 +1619,9 @@ export default function InvoiceImportScreen() {
                 disabled={confirmMutation.isPending}
               >
                 <Text style={styles.primaryButtonText}>
-                  Confirmar despesa de {formatCurrency(documentData?.payment_info?.total ?? itemsSum)}
+                  {receiptCard
+                    ? `Lançar ${formatCurrency(documentData?.payment_info?.total ?? itemsSum)} no ${creditCardLabel(receiptCard)}`
+                    : `Confirmar despesa de ${formatCurrency(documentData?.payment_info?.total ?? itemsSum)}`}
                 </Text>
               </Pressable>
             )}
@@ -1510,7 +1631,39 @@ export default function InvoiceImportScreen() {
         {/* ──────────────────────────────────────────────────────────────────────── */}
         {/* STEP 4: IMPORTAÇÃO CONCLUÍDA (163:1619) */}
         {/* ──────────────────────────────────────────────────────────────────────── */}
-        {step === 'completed' && (
+        {step === 'completed' && paidResult && (
+          <View style={styles.stepWrapper}>
+            <View style={styles.successBadgeContainer}>
+              <View style={styles.successIconCircle}>
+                <Ionicons name="checkmark" size={32} color="#34d399" />
+              </View>
+              <Text style={styles.successTitle}>
+                {paidResult.fullyPaid ? 'Fatura paga' : 'Pagamento registrado'}
+              </Text>
+              <Text style={styles.successSubtitle}>
+                {formatCurrency(paidResult.amount)} na fatura de {monthLabel(paidResult.year, paidResult.month)} do{' '}
+                {paidResult.cardName}
+                {paidResult.fullyPaid ? '' : '. Ela fica parcialmente paga.'}
+              </Text>
+            </View>
+            <View style={styles.completedButtonsRow}>
+              <Pressable
+                style={({ pressed }) => [styles.primaryButton, pressed && styles.btnPressed]}
+                onPress={() => router.replace('/invoices' as any)}
+              >
+                <Text style={styles.primaryButtonText}>Ver faturas</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.secondaryButton, pressed && styles.btnPressed]}
+                onPress={() => router.replace('/(app)/(tabs)')}
+              >
+                <Text style={styles.secondaryButtonText}>Voltar ao início</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {step === 'completed' && !paidResult && (
           <View style={styles.stepWrapper}>
             {/* Sucesso Badge */}
             <View style={styles.successBadgeContainer}>
@@ -1520,8 +1673,11 @@ export default function InvoiceImportScreen() {
               <Text style={styles.successTitle}>Importação concluída</Text>
               <Text style={styles.successSubtitle}>
                 {selectedCount} {selectedCount === 1 ? 'lançamento foi adicionado' : 'lançamentos foram adicionados'}
-                {invoiceMonthName ? ` à fatura de ${invoiceMonthName}` : ''}
-                {cardTitle ? ` do ${cardTitle}` : ''}
+                {docType === 'receipt'
+                  ? receiptCard
+                    ? ` à fatura do ${creditCardLabel(receiptCard)}`
+                    : ''
+                  : `${invoiceMonthName ? ` à fatura de ${invoiceMonthName}` : ''}${cardTitle ? ` do ${cardTitle}` : ''}`}
               </Text>
             </View>
 
@@ -1615,6 +1771,20 @@ export default function InvoiceImportScreen() {
                 Lançamentos revisados e confirmados por você.
               </Text>
             </View>
+
+            {/* Compra com o final de um cartão não cadastrado: só pergunta, nunca cria */}
+            {offerReceiptCard && (
+              <ReceiptCardBanner
+                match={cardMatch}
+                cards={activeCards}
+                card={undefined}
+                digits={receiptDigits}
+                useCard={false}
+                onUseCard={() => {}}
+                onSelect={() => {}}
+                onRegister={handleRegisterReceiptCard}
+              />
+            )}
 
             {/* Botões de Ação */}
             <View style={styles.completedButtonsRow}>

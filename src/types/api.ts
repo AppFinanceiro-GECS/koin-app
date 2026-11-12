@@ -370,7 +370,41 @@ export interface DocumentResponse {
   is_duplicate: boolean
   card_info?: CardInfo | null
   card_match?: CardMatch | null
+  /** Comprovantes: cartão da compra ou da fatura paga */
+  payment_card?: PaymentCard | null
+  /** Comprovante de pagamento de fatura: qual fatura em aberto ele quita */
+  invoice_payment?: InvoicePaymentMatch | null
   payment_info?: PaymentInfo | null
+}
+
+/** Cartão citado num comprovante (final, bandeira, banco) */
+export interface PaymentCard {
+  card_issuer: string | null
+  card_bank: string | null
+  card_brand: string | null
+  card_last_digits: string | null
+}
+
+/** Fatura que um comprovante de pagamento pode quitar */
+export interface InvoicePaymentCandidate {
+  invoice_id: number
+  credit_card_id: number
+  credit_card_name: string
+  reference_month: number
+  reference_year: number
+  due_date: string
+  total_amount: number
+  remaining_amount: number
+}
+
+/** koin-api: GET /documents/{id} para comprovante_fatura */
+export interface InvoicePaymentMatch {
+  status: 'matched' | 'ambiguous' | 'already_paid' | 'none'
+  amount_paid: number | null
+  payment_date: string | null
+  invoice: InvoicePaymentCandidate | null
+  amount_matches: boolean
+  candidates: InvoicePaymentCandidate[]
 }
 
 /** Cartão que a fatura descreve, para cadastrar com um toque */
@@ -386,7 +420,8 @@ export interface CardSuggestion {
 
 /** De qual cartão é o documento (koin-api: GET /documents/{id}) */
 export interface CardMatch {
-  status: 'matched' | 'new' | 'ambiguous' | 'none'
+  /** unregistered: comprovante com o final de um cartão não cadastrado (o app pergunta) */
+  status: 'matched' | 'new' | 'ambiguous' | 'unregistered' | 'none'
   credit_card_id: number | null
   credit_card_name: string | null
   candidate_ids: number[]
