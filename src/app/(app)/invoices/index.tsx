@@ -1,7 +1,10 @@
-import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, StyleSheet } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Pressable, RefreshControl } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
+import { getApiErrorMessage } from '@/lib/errors'
+import { formatCurrency } from '@/lib/format'
 import { invoiceService } from '@/services/invoiceService'
 
 const styles = StyleSheet.create({
@@ -15,15 +18,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#1e293b',
   },
+  headerIcon: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: {
+    flex: 1,
     color: '#ffffff',
-    fontSize: 28,
+    fontSize: 20,
     fontWeight: '700',
+  },
+  emptyHint: {
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 8,
+    paddingHorizontal: 32,
+    fontSize: 13,
+    lineHeight: 18,
   },
   listContainer: {
     paddingHorizontal: 16,
@@ -64,8 +85,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   editButton: {
-    padding: 6,
-    borderRadius: 6,
+    padding: 10,
+    borderRadius: 10,
     backgroundColor: 'rgba(168, 85, 247, 0.1)',
   },
   cardTitleText: {
@@ -126,6 +147,12 @@ const styles = StyleSheet.create({
   },
 })
 
+/** "2027-01-15" -> "15/01" sem passar por Date (que no Brasil voltaria um dia) */
+function shortDate(iso: string): string {
+  const [, month, day] = iso.slice(0, 10).split('-')
+  return day && month ? `${day}/${month}` : iso
+}
+
 export default function InvoicesScreen() {
   const router = useRouter()
   const { creditCardId, creditCardName } = useLocalSearchParams<{
@@ -133,7 +160,14 @@ export default function InvoicesScreen() {
     creditCardName?: string
   }>()
 
-  const { data: invoices = [], isLoading } = useQuery({
+  const {
+    data: invoices = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isRefetching,
+  } = useQuery({
     queryKey: ['invoices', creditCardId],
     queryFn: () => invoiceService.listInvoices(creditCardId ? parseInt(creditCardId) : undefined, undefined, 50),
   })
@@ -146,35 +180,83 @@ export default function InvoicesScreen() {
     overdue: { backgroundColor: 'rgba(127, 29, 29, 0.3)', textColor: '#f87171', label: 'Vencida' },
   }
 
+  const header = (
+    <View style={styles.header}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Voltar"
+        hitSlop={8}
+        onPress={() => router.back()}
+        style={styles.headerIcon}
+      >
+        <Ionicons name="chevron-back" size={24} color="#ffffff" />
+      </Pressable>
+      <Text style={styles.headerTitle} numberOfLines={1}>
+        {creditCardName ? `Faturas · ${creditCardName}` : 'Faturas'}
+      </Text>
+      {creditCardId ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Editar ou excluir cartão"
+          hitSlop={8}
+          onPress={() => router.push({ pathname: '/credit-card/modal', params: { id: creditCardId } } as any)}
+          style={styles.editButton}
+        >
+          <Ionicons name="pencil" size={16} color="#a855f7" />
+        </Pressable>
+      ) : (
+        <View style={styles.headerIcon} />
+      )}
+    </View>
+  )
+
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#a855f7" />
+      <SafeAreaView edges={['top']} style={styles.container}>
+        {header}
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#a855f7" />
+        </View>
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{creditCardName ? `Faturas - ${creditCardName}` : 'Faturas'}</Text>
-      </View>
+    <SafeAreaView edges={['top']} style={styles.container}>
+      {header}
 
-      <ScrollView style={{ flex: 1 }}>
-        {invoices.length === 0 ? (
+      <ScrollView
+        style={{ flex: 1 }}
+        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { refetch() }} tintColor="#a855f7" />}
+      >
+        {isError ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="cloud-offline-outline" size={48} color="#64748b" />
+            <Text style={styles.emptyText}>
+              {getApiErrorMessage(error, 'Não foi possível carregar as faturas. Puxe para baixo para tentar de novo.')}
+            </Text>
+          </View>
+        ) : invoices.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="document-outline" size={48} color="#64748b" />
-            <Text style={styles.emptyText}>Nenhuma fatura encontrada</Text>
+            <Text style={styles.emptyText}>Nenhuma fatura ainda</Text>
+            <Text style={styles.emptyHint}>
+              As faturas aparecem quando você lança compras no cartão ou importa o PDF da fatura.
+            </Text>
           </View>
         ) : (
           <View style={styles.listContainer}>
             {invoices.map((invoice) => {
-              const statusConfig = statusColors[invoice.status]
-              const progressPercent = ((invoice.total_amount - invoice.remaining_amount) / invoice.total_amount) * 100
+              const statusConfig = statusColors[invoice.status] ?? statusColors.open
+              const total = Number(invoice.total_amount) || 0
+              const remaining = Number(invoice.remaining_amount) || 0
+              const progressPercent = total > 0 ? Math.min(Math.max(((total - remaining) / total) * 100, 0), 100) : 0
 
               return (
                 <TouchableOpacity
                   key={invoice.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Fatura ${invoice.period_display}`}
                   onPress={() => router.push(`/invoices/${invoice.id}`)}
                   style={styles.card}
                 >
@@ -189,40 +271,27 @@ export default function InvoicesScreen() {
                           {statusConfig.label}
                         </Text>
                       </View>
-                      <TouchableOpacity
-                        onPress={() => {
-                          // TODO: Navigate to edit credit card modal
-                        }}
-                        style={styles.editButton}
-                      >
-                        <Ionicons name="pencil" size={16} color="#a855f7" />
-                      </TouchableOpacity>
                     </View>
                   </View>
 
                   <View style={styles.cardContent}>
                     <View style={styles.amountBox}>
                       <Text style={styles.amountLabel}>Total</Text>
-                      <Text style={styles.amountValue}>R$ {invoice.total_amount.toFixed(2)}</Text>
+                      <Text style={styles.amountValue}>{formatCurrency(total)}</Text>
                     </View>
                     <View style={styles.amountBox}>
                       <Text style={styles.amountLabel}>Restante</Text>
-                      <Text style={[styles.amountValue, { color: invoice.remaining_amount > 0 ? '#fb923c' : '#4ade80' }]}>
-                        R$ {invoice.remaining_amount.toFixed(2)}
+                      <Text style={[styles.amountValue, { color: remaining > 0 ? '#fb923c' : '#4ade80' }]}>
+                        {formatCurrency(remaining)}
                       </Text>
                     </View>
                     <View style={styles.amountBox}>
                       <Text style={styles.amountLabel}>Vencimento</Text>
-                      <Text style={styles.amountValue}>
-                        {new Date(invoice.due_date).toLocaleDateString('pt-BR', {
-                          day: '2-digit',
-                          month: '2-digit',
-                        })}
-                      </Text>
+                      <Text style={styles.amountValue}>{shortDate(invoice.due_date)}</Text>
                     </View>
                   </View>
 
-                  {invoice.remaining_amount > 0 && (
+                  {remaining > 0 && total > 0 && (
                     <View style={styles.progressSection}>
                       <View style={styles.progressBar}>
                         <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />

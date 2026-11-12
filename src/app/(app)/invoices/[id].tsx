@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, ActivityIndicator, StyleSheet } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
+import { invalidateCreditCardQueries } from '@/lib/creditCards'
+import { formatCurrency } from '@/lib/format'
 import { invoiceService } from '@/services/invoiceService'
 import { InvoicePaymentModal } from '@/components/invoices/InvoicePaymentModal'
 import { InvoiceTransactionList } from '@/components/invoices/InvoiceTransactionList'
@@ -142,6 +144,12 @@ const styles = StyleSheet.create({
   },
 })
 
+/** "2027-01-15" -> "15/01/2027" sem passar por Date (que no Brasil voltaria um dia) */
+function brDate(iso: string): string {
+  const [year, month, day] = iso.slice(0, 10).split('-')
+  return year && month && day ? `${day}/${month}/${year}` : iso
+}
+
 export default function InvoiceDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
@@ -149,6 +157,7 @@ export default function InvoiceDetailScreen() {
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
 
+  const queryClient = useQueryClient()
   const { data: invoice, isLoading, refetch } = useQuery({
     queryKey: ['invoice', id],
     queryFn: () => invoiceService.getInvoice(parseInt(id!)),
@@ -165,6 +174,8 @@ export default function InvoiceDetailScreen() {
     setPaymentModalVisible(false)
     setSuccessMessage('Pagamento registrado com sucesso!')
     refetch()
+    // limite disponível, lista de faturas e saldo da conta usada mudam com o pagamento
+    invalidateCreditCardQueries(queryClient)
     setTimeout(() => setSuccessMessage(''), 3000)
   }
 
@@ -236,14 +247,14 @@ export default function InvoiceDetailScreen() {
 
           <View style={styles.card}>
             <Text style={styles.amountLabel}>Valor total</Text>
-            <Text style={styles.totalAmount}>R$ {invoice.total_amount.toFixed(2)}</Text>
+            <Text style={styles.totalAmount}>{formatCurrency(Number(invoice.total_amount) || 0)}</Text>
           </View>
 
           <View style={styles.row}>
             <View style={styles.halfCard}>
               <Text style={styles.amountLabel}>Pago</Text>
               <Text style={[styles.smallAmount, { color: '#4ade80' }]}>
-                R$ {invoice.paid_amount.toFixed(2)}
+                {formatCurrency(Number(invoice.paid_amount) || 0)}
               </Text>
             </View>
             <View style={styles.halfCard}>
@@ -254,7 +265,7 @@ export default function InvoiceDetailScreen() {
                   { color: invoice.remaining_amount > 0 ? '#fb923c' : '#4ade80' },
                 ]}
               >
-                R$ {invoice.remaining_amount.toFixed(2)}
+                {formatCurrency(Number(invoice.remaining_amount) || 0)}
               </Text>
             </View>
           </View>
@@ -263,13 +274,13 @@ export default function InvoiceDetailScreen() {
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Data de vencimento</Text>
               <Text style={styles.infoValue}>
-                {new Date(invoice.due_date).toLocaleDateString('pt-BR')}
+                {brDate(invoice.due_date)}
               </Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Data de fechamento</Text>
               <Text style={styles.infoValue}>
-                {new Date(invoice.closing_date).toLocaleDateString('pt-BR')}
+                {brDate(invoice.closing_date)}
               </Text>
             </View>
             {invoice.status === 'paid' && invoice.paid_at && (

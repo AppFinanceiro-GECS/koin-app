@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { getDuplicateDocumentId } from '@/lib/documents'
 import { formatCurrency } from '@/lib/format'
+import { activeCreditCards, creditCardLabel } from '@/lib/creditCards'
 import { accountsApi, creditCardsApi } from '@/services/accounts.api'
 import { documentsApi } from '@/services/documents.api'
 import { familyApi } from '@/services/settings.api'
@@ -107,6 +108,7 @@ export default function InvoiceImportScreen() {
 
   // Inputs
   const [userSelectedCard, setSelectedCard] = useState<string | null>(null)
+  const [selectedCardId, setSelectedCardId] = useState<number | null>(null)
   const [selectedInvoice, setSelectedInvoice] = useState('Outubro de 2026, fechou em 28/09')
   const [selectedFile, setSelectedFile] = useState<{
     name: string
@@ -180,12 +182,10 @@ export default function InvoiceImportScreen() {
     queryFn: async () => (await accountsApi.list()).data,
   })
 
-  // Derived selections from API or defaults
-  const selectedCard =
-    userSelectedCard ??
-    (Array.isArray(cards) && cards.length > 0
-      ? cards[0].name || `Cartão final ${cards[0].last_digits || ''}`
-      : 'Inter final 1190')
+  // Cartão escolhido pelo id (dois cartões podem ter o mesmo nome); sem escolha, o primeiro ativo
+  const activeCards = activeCreditCards(cards)
+  const activeCard = activeCards.find((c) => c.id === selectedCardId) ?? activeCards[0]
+  const selectedCard = activeCard ? creditCardLabel(activeCard) : 'Nenhum cartão cadastrado'
 
   const receiptAccount =
     userReceiptAccount ??
@@ -466,7 +466,6 @@ export default function InvoiceImportScreen() {
         type: selectedFile.mimeType || 'application/pdf',
         file: selectedFile.file,
       }
-      const activeCard = cards?.find((c: { id: number; name?: string }) => c.name === selectedCard)
       const trimmedPassword = pdfPassword.trim()
       const res = await documentsApi.uploadAsync(
         uploadFile,
@@ -679,7 +678,7 @@ export default function InvoiceImportScreen() {
     documentData?.card_info?.card_bank ||
     documentData?.card_info?.card_issuer ||
     userSelectedCard ||
-    (Array.isArray(cards) && cards.length > 0 ? cards[0].name : '')
+    (activeCard ? creditCardLabel(activeCard) : '')
 
   const invoiceMonthName = getInvoiceMonthName(documentData?.card_info?.invoice_month)
 
@@ -852,15 +851,17 @@ export default function InvoiceImportScreen() {
               <Pressable
                 style={styles.fieldInput}
                 onPress={() => {
-                  const cardOptions = Array.isArray(cards) && cards.length > 0
-                    ? cards.map((c: any) => ({
-                        text: c.name || `Cartão final ${c.last_digits || ''}`,
-                        onPress: () => setSelectedCard(c.name || 'Cartão'),
-                      }))
-                    : [
-                        { text: 'Inter final 1190', onPress: () => setSelectedCard('Inter final 1190') },
-                        { text: 'Nubank final 4022', onPress: () => setSelectedCard('Nubank final 4022') },
-                      ]
+                  if (activeCards.length === 0) {
+                    Alert.alert('Nenhum cartão cadastrado', 'Cadastre o cartão da fatura para o Koin separar as compras.', [
+                      { text: 'Cancelar', style: 'cancel' },
+                      { text: 'Cadastrar cartão', onPress: () => router.push('/credit-card/modal') },
+                    ])
+                    return
+                  }
+                  const cardOptions = activeCards.map((c) => ({
+                    text: creditCardLabel(c),
+                    onPress: () => setSelectedCardId(c.id),
+                  }))
                   Alert.alert('Selecionar Cartão', 'Selecione o cartão de crédito emitente da fatura:', [
                     ...cardOptions,
                     { text: 'Cancelar', style: 'cancel' },

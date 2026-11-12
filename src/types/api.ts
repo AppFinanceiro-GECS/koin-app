@@ -39,6 +39,82 @@ export interface Account {
   created_at: string
 }
 
+// GET /credit-cards (CreditCardListResponse)
+export interface CreditCardListItem {
+  id: number
+  account_id: number
+  name: string
+  nickname: string | null
+  bank_id: string | null
+  credit_limit: number
+  current_balance: number
+  available_limit: number
+  closing_day: number
+  due_day: number
+  has_points: boolean
+  points_program: string | null
+  points_factor: number | null
+  card_brand: string | null
+  card_variant: string | null
+  last_four_digits: string | null
+  annual_fee: number | null
+  annual_fee_frequency: string
+  annual_fee_waived: boolean
+  color: string | null
+  icon: string | null
+  is_active: boolean
+  has_invoice_password?: boolean
+  ownership_type?: string
+  user_id?: number | null
+}
+
+// GET /credit-cards/{id} (CreditCardResponse)
+export interface CreditCardDetail {
+  id: number
+  account_id: number
+  user_id: number
+  credit_limit: number
+  closing_day: number
+  due_day: number
+  has_points: boolean
+  points_program: string | null
+  nickname: string | null
+  bank_id: string | null
+  card_brand: string | null
+  card_variant: string | null
+  last_four_digits: string | null
+  annual_fee: number | null
+  annual_fee_frequency: string
+  annual_fee_waived: boolean
+  is_active: boolean
+  has_invoice_password: boolean
+  account_name: string | null
+  account_balance: number
+  account_color: string | null
+  ownership_type?: string
+}
+
+export interface CreditCardWrite {
+  name?: string
+  nickname?: string | null
+  credit_limit?: number
+  closing_day?: number
+  due_day?: number
+  last_four_digits?: string | null
+  card_brand?: string | null
+  is_active?: boolean
+  ownership_type?: 'personal' | 'household'
+}
+
+// 409 do DELETE /credit-cards/{id} sem force
+export interface CreditCardLinkedData {
+  code: 'credit_card_has_linked_data'
+  message: string
+  transactions: number
+  invoices: number
+  installments: number
+}
+
 export type TransactionType = 'expense' | 'income' | 'transfer'
 
 export type PaymentMethod =

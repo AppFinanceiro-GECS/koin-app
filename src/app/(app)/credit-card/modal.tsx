@@ -1,8 +1,9 @@
 import Feather from '@expo/vector-icons/Feather'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useState } from 'react'
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -15,155 +16,312 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { invalidateCreditCardQueries, linkedDataFromError } from '@/lib/creditCards'
+import { getApiErrorMessage } from '@/lib/errors'
 import { formatCurrency, parseAmount } from '@/lib/format'
+import { cardBrands } from '@/schemas/creditCard.schema'
 import { creditCardsApi } from '@/services/accounts.api'
 import { darkTheme } from '@/theme/colors'
+import type { CreditCardDetail, CreditCardWrite } from '@/types/api'
 
-const LINKED_ACCOUNTS = ['Sem vínculo', 'Conta Itaú', 'Conta Inter']
+/** "8000", "8.000", "8.000,50" e "8000,50" viram número; o resto, NaN */
+function parseLimit(input: string): number {
+  const trimmed = input.trim()
+  if (/^\d{1,3}(\.\d{3})+$/.test(trimmed)) return Number(trimmed.replace(/\./g, ''))
+  return parseAmount(trimmed)
+}
+
+function limitToInput(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace('.', ',')
+}
+
+function parseDay(input: string): number | null {
+  const day = Number(input)
+  return Number.isInteger(day) && day >= 1 && day <= 31 ? day : null
+}
+
+function ModalHeader({ title }: { title: string }) {
+  return (
+    <View style={styles.header}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Voltar"
+        onPress={() => router.back()}
+        style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+      >
+        <Feather name="chevron-left" size={24} color={darkTheme.text} />
+      </Pressable>
+      <Text style={styles.headerTitle}>{title}</Text>
+      <View style={styles.headerSpacer} />
+    </View>
+  )
+}
 
 export default function CreditCardModal() {
-  const params = useLocalSearchParams<{
-    id?: string
-    name?: string
-    digits?: string
-    limit?: string
-    closingDay?: string
-    dueDay?: string
-  }>()
-  const isEditing = Boolean(params.id)
+  const params = useLocalSearchParams<{ id?: string }>()
+  const parsedId = params.id ? Number(params.id) : NaN
+  const cardId = Number.isNaN(parsedId) ? null : parsedId
 
+  const cardQuery = useQuery({
+    queryKey: ['credit-card', cardId],
+    queryFn: async () => (await creditCardsApi.get(cardId as number)).data,
+    enabled: cardId !== null,
+  })
+
+  if (cardId !== null && !cardQuery.data) {
+    return (
+      <SafeAreaView edges={['top', 'bottom']} style={styles.container}>
+        <ModalHeader title="Editar cartão" />
+        <View style={styles.centered}>
+          {cardQuery.isError ? (
+            <>
+              <Text style={styles.subtitle}>
+                {getApiErrorMessage(cardQuery.error, 'Não foi possível carregar o cartão.')}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => cardQuery.refetch()}
+                style={({ pressed }) => [styles.secondaryButton, styles.retryButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.secondaryButtonText}>Tentar de novo</Text>
+              </Pressable>
+            </>
+          ) : (
+            <ActivityIndicator size="large" color={darkTheme.primary} />
+          )}
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  // key: o formulário nasce com os dados reais do cartão (sem efeito copiando para o estado)
+  return (
+    <CreditCardForm
+      key={cardQuery.data?.id ?? 'novo'}
+      cardId={cardId}
+      card={cardQuery.data}
+      refetchCard={async () => {
+        await cardQuery.refetch()
+      }}
+    />
+  )
+}
+
+function CreditCardForm({
+  cardId,
+  card,
+  refetchCard,
+}: {
+  cardId: number | null
+  card: CreditCardDetail | undefined
+  refetchCard: () => Promise<void>
+}) {
+  const isEditing = cardId !== null
   const queryClient = useQueryClient()
-  const [name, setName] = useState(params.name || (isEditing ? 'Nubank' : ''))
-  const [digits, setDigits] = useState(params.digits || (isEditing ? '4821' : ''))
-  const [linkedAccount, setLinkedAccount] = useState('Sem vínculo')
-  const [limit, setLimit] = useState(params.limit || (isEditing ? '8000' : '5000'))
-  const [closingDay, setClosingDay] = useState(params.closingDay || '24')
-  const [dueDay, setDueDay] = useState(params.dueDay || '04')
-  const [loading, setLoading] = useState(false)
 
-  const parsedLimit = parseAmount(limit)
-  const displayLimit = isNaN(parsedLimit) ? 0 : parsedLimit
+  const [name, setName] = useState(card?.nickname || card?.account_name || '')
+  const [digits, setDigits] = useState(card?.last_four_digits || '')
+  const [brand, setBrand] = useState<string | null>(card?.card_brand ?? null)
+  const [limit, setLimit] = useState(card ? limitToInput(Number(card.credit_limit) || 0) : '')
+  const [closingDay, setClosingDay] = useState(card ? String(card.closing_day) : '')
+  const [dueDay, setDueDay] = useState(card ? String(card.due_day) : '')
+  const [saving, setSaving] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const parsedLimit = parseLimit(limit)
+  const limitIsValid = !Number.isNaN(parsedLimit) && parsedLimit > 0
+
+  const validate = (): string | null => {
+    if (!name.trim()) return 'Informe o nome do cartão.'
+    if (digits && digits.length !== 4) return 'O final do cartão precisa ter 4 dígitos, ou deixe em branco.'
+    if (!limitIsValid) return 'Informe o limite total do cartão, por exemplo 5000 ou 5.000,00.'
+    if (parseDay(closingDay) === null) return 'O dia de fechamento precisa estar entre 1 e 31.'
+    if (parseDay(dueDay) === null) return 'O dia de vencimento precisa estar entre 1 e 31.'
+    return null
+  }
 
   const handleSave = async () => {
-    if (!name.trim()) {
-      Alert.alert('Erro', 'Informe o nome do cartão.')
-      return
-    }
-    if (digits.trim().length !== 4) {
-      Alert.alert('Erro', 'Informe os 4 últimos dígitos do cartão.')
+    const problem = validate()
+    if (problem) {
+      Alert.alert('Confira os dados', problem)
       return
     }
 
-    setLoading(true)
+    const payload: CreditCardWrite = {
+      name: name.trim(),
+      nickname: name.trim(),
+      credit_limit: parsedLimit,
+      closing_day: parseDay(closingDay) as number,
+      due_day: parseDay(dueDay) as number,
+      last_four_digits: digits || null,
+      card_brand: brand,
+    }
+
+    setSaving(true)
     try {
-      const payload = {
-        name: name.trim(),
-        nickname: name.trim(),
-        credit_limit: displayLimit > 0 ? displayLimit : 5000,
-        closing_day: Math.min(Math.max(Number(closingDay) || 24, 1), 31),
-        due_day: Math.min(Math.max(Number(dueDay) || 4, 1), 31),
-        last_four_digits: digits.trim(),
-        card_brand: 'Mastercard',
-      }
-
-      if (isEditing && params.id) {
-        await creditCardsApi.update(Number(params.id), payload)
+      if (isEditing) {
+        await creditCardsApi.update(cardId as number, payload)
       } else {
         await creditCardsApi.create(payload)
       }
-
-      await queryClient.invalidateQueries({ queryKey: ['credit-cards'] })
-      Alert.alert(
-        'Sucesso',
-        isEditing ? 'Cartão atualizado com sucesso!' : 'Cartão cadastrado com sucesso!',
-        [{ text: 'OK', onPress: () => router.back() }]
-      )
+      await invalidateCreditCardQueries(queryClient)
+      router.back()
     } catch (err) {
-      console.warn('Erro ao salvar cartão:', err)
-      Alert.alert('Erro', 'Não foi possível salvar o cartão. Verifique a conexão com a API.')
+      Alert.alert('Não foi possível salvar', getApiErrorMessage(err, 'Tente de novo em instantes.'))
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
+  const finishRemoval = async (message: string) => {
+    await invalidateCreditCardQueries(queryClient)
+    queryClient.removeQueries({ queryKey: ['credit-card', cardId] })
+    router.back()
+    Alert.alert('Pronto', message)
+  }
+
+  const setActive = async (active: boolean) => {
+    setBusy(true)
+    try {
+      await creditCardsApi.update(cardId as number, { is_active: active })
+      if (active) {
+        await invalidateCreditCardQueries(queryClient)
+        await refetchCard()
+      } else {
+        await finishRemoval('Cartão desativado. O histórico continua salvo e você pode reativá-lo quando quiser.')
+      }
+    } catch (err) {
+      Alert.alert('Não foi possível alterar o cartão', getApiErrorMessage(err, 'Tente de novo em instantes.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const deleteCard = async (force: boolean) => {
+    setBusy(true)
+    try {
+      await creditCardsApi.delete(cardId as number, { force })
+      await finishRemoval('Cartão excluído.')
+    } catch (err) {
+      const linked = linkedDataFromError(err)
+      if (linked && !force) {
+        const buttons: { text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }[] = [
+          { text: 'Cancelar', style: 'cancel' },
+        ]
+        if (card?.is_active !== false) {
+          buttons.push({ text: 'Desativar', onPress: () => setActive(false) })
+        }
+        buttons.push({ text: 'Excluir tudo', style: 'destructive', onPress: () => deleteCard(true) })
+        Alert.alert('O cartão tem dados vinculados', linked.message, buttons)
+      } else {
+        Alert.alert('Não foi possível excluir', getApiErrorMessage(err, 'Tente de novo em instantes.'))
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const confirmDelete = () => {
+    const label = name.trim() || 'este cartão'
+    Alert.alert('Excluir cartão?', `"${label}" e a conta dele no Koin serão removidos. Essa ação não pode ser desfeita.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Excluir', style: 'destructive', onPress: () => deleteCard(false) },
+    ])
+  }
+
+  const confirmRemovePassword = () => {
+    Alert.alert('Remover senha salva?', 'Na próxima fatura em PDF protegida, o Koin vai pedir a senha de novo.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Remover',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await creditCardsApi.deleteInvoicePassword(cardId as number)
+            await refetchCard()
+            await queryClient.invalidateQueries({ queryKey: ['credit-cards'] })
+          } catch (err) {
+            Alert.alert('Não foi possível remover', getApiErrorMessage(err, 'Tente de novo em instantes.'))
+          }
+        },
+      },
+    ])
+  }
+
+  const inactive = isEditing && card?.is_active === false
+
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboardAvoid}
-      >
-        {/* Cabeçalho */}
-        <View style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Voltar"
-            onPress={() => router.back()}
-            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-          >
-            <Feather name="chevron-left" size={24} color={darkTheme.text} />
-          </Pressable>
-          <Text style={styles.headerTitle}>Cartão de crédito</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardAvoid}>
+        <ModalHeader title={isEditing ? 'Editar cartão' : 'Novo cartão'} />
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Badge de status */}
-          <View style={styles.badgeWrapper}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {isEditing ? `Edição · ${name || 'Nubank'}` : 'Novo cartão'}
+          {inactive && (
+            <View style={styles.inactiveBanner}>
+              <Feather name="pause-circle" size={18} color={darkTheme.warning} />
+              <Text style={styles.inactiveText}>
+                Cartão desativado: não aparece para novos lançamentos, mas o histórico continua salvo.
               </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Reativar cartão"
+                disabled={busy}
+                onPress={() => setActive(true)}
+                style={({ pressed }) => [styles.inactiveAction, pressed && styles.pressed]}
+              >
+                <Text style={styles.inactiveActionText}>Reativar</Text>
+              </Pressable>
             </View>
-          </View>
+          )}
 
-          {/* Orientação */}
           <Text style={styles.subtitle}>
             Use apenas os quatro últimos dígitos. Não informe número completo, CVV ou senha bancária.
           </Text>
 
-          {/* Campo: Nome */}
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>Nome do cartão</Text>
             <TextInput
               style={styles.input}
               value={name}
               onChangeText={setName}
+              maxLength={50}
               placeholder="Ex: Nubank, Inter..."
               placeholderTextColor={darkTheme.textMuted}
             />
           </View>
 
-          {/* Campo: Final do cartão */}
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Final do cartão</Text>
+            <Text style={styles.fieldLabel}>Final do cartão (opcional)</Text>
             <TextInput
               style={styles.input}
               value={digits}
               onChangeText={(t) => setDigits(t.replace(/\D/g, '').slice(0, 4))}
-              keyboardType="numeric"
+              keyboardType="number-pad"
               maxLength={4}
-              placeholder="4821"
+              placeholder="0000"
               placeholderTextColor={darkTheme.textMuted}
             />
           </View>
 
-          {/* Campo: Conta vinculada */}
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Conta vinculada (opcional)</Text>
+            <Text style={styles.fieldLabel}>Bandeira (opcional)</Text>
             <View style={styles.chipsRow}>
-              {LINKED_ACCOUNTS.map((acc) => {
-                const active = linkedAccount === acc
+              {cardBrands.map((item) => {
+                const active = brand === item
                 return (
                   <Pressable
-                    key={acc}
-                    onPress={() => setLinkedAccount(acc)}
+                    key={item}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => setBrand(active ? null : item)}
                     style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
                   >
                     <Text style={[styles.chipLabel, active ? styles.chipLabelActive : styles.chipLabelInactive]}>
-                      {acc}
+                      {item}
                     </Text>
                   </Pressable>
                 )
@@ -171,47 +329,45 @@ export default function CreditCardModal() {
             </View>
           </View>
 
-          {/* Campo: Limite total */}
           <View style={styles.fieldGroup}>
             <Text style={styles.fieldLabel}>Limite total</Text>
             <TextInput
               style={styles.input}
               value={limit}
               onChangeText={setLimit}
-              keyboardType="numeric"
-              placeholder="8000"
+              keyboardType="decimal-pad"
+              placeholder="5.000,00"
               placeholderTextColor={darkTheme.textMuted}
             />
-            <Text style={styles.fieldHint}>
-              Limite de {formatCurrency(displayLimit)}
+            <Text style={[styles.fieldHint, limit && !limitIsValid && styles.fieldHintError]}>
+              {limit && !limitIsValid ? 'Valor inválido' : `Limite de ${formatCurrency(limitIsValid ? parsedLimit : 0)}`}
             </Text>
           </View>
 
-          {/* Grupo de informações: Datas da fatura */}
           <View style={styles.infoCard}>
             <View style={styles.dateRow}>
               <View style={styles.dateCol}>
-                <Text style={styles.dateLabel}>Fechamento</Text>
+                <Text style={styles.dateLabel}>Dia do fechamento</Text>
                 <TextInput
                   style={styles.dayInput}
                   value={closingDay}
                   onChangeText={(t) => setClosingDay(t.replace(/\D/g, '').slice(0, 2))}
-                  keyboardType="numeric"
+                  keyboardType="number-pad"
                   maxLength={2}
-                  placeholder="24"
+                  placeholder="Ex: 24"
                   placeholderTextColor={darkTheme.textMuted}
                 />
               </View>
 
               <View style={styles.dateCol}>
-                <Text style={styles.dateLabel}>Vencimento</Text>
+                <Text style={styles.dateLabel}>Dia do vencimento</Text>
                 <TextInput
                   style={styles.dayInput}
                   value={dueDay}
                   onChangeText={(t) => setDueDay(t.replace(/\D/g, '').slice(0, 2))}
-                  keyboardType="numeric"
+                  keyboardType="number-pad"
                   maxLength={2}
-                  placeholder="04"
+                  placeholder="Ex: 4"
                   placeholderTextColor={darkTheme.textMuted}
                 />
               </View>
@@ -222,32 +378,78 @@ export default function CreditCardModal() {
             </Text>
           </View>
 
+          {isEditing && card?.has_invoice_password && (
+            <View style={styles.passwordRow}>
+              <Feather name="lock" size={16} color={darkTheme.textSecondary} />
+              <Text style={styles.passwordText}>Senha do PDF da fatura salva</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Remover senha salva da fatura"
+                onPress={confirmRemovePassword}
+                style={({ pressed }) => pressed && styles.pressed}
+              >
+                <Text style={styles.linkDanger}>Remover</Text>
+              </Pressable>
+            </View>
+          )}
+
           <Text style={styles.footerNote}>
-            A conta usada para registrar pagamentos é escolhida no momento do pagamento, não neste vínculo.
+            A conta usada para pagar a fatura é escolhida na hora do pagamento.
           </Text>
+
+          {isEditing && (
+            <View style={styles.dangerZone}>
+              {!inactive && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Desativar cartão"
+                  disabled={busy}
+                  onPress={() =>
+                    Alert.alert(
+                      'Desativar cartão?',
+                      'Ele some das listas de novos lançamentos, mas faturas e histórico continuam salvos.',
+                      [
+                        { text: 'Cancelar', style: 'cancel' },
+                        { text: 'Desativar', onPress: () => setActive(false) },
+                      ]
+                    )
+                  }
+                  style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+                >
+                  <Text style={styles.secondaryButtonText}>Desativar cartão</Text>
+                </Pressable>
+              )}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Excluir cartão"
+                disabled={busy}
+                onPress={confirmDelete}
+                style={({ pressed }) => [styles.dangerButton, pressed && styles.pressed]}
+              >
+                {busy ? (
+                  <ActivityIndicator size="small" color={darkTheme.error} />
+                ) : (
+                  <>
+                    <Feather name="trash-2" size={16} color={darkTheme.error} />
+                    <Text style={styles.dangerButtonText}>Excluir cartão</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          )}
         </ScrollView>
 
-        {/* Rodapé */}
         <View style={styles.footer}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Salvar cartão"
             onPress={handleSave}
-            disabled={loading}
-            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+            disabled={saving || busy}
+            style={({ pressed }) => [styles.primaryButton, (saving || busy) && styles.disabled, pressed && styles.pressed]}
           >
             <Text style={styles.primaryButtonText}>
-              {loading ? 'Salvando...' : 'Salvar cartão'}
+              {saving ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Cadastrar cartão'}
             </Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Cancelar"
-            onPress={() => router.back()}
-            style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
-          >
-            <Text style={styles.secondaryButtonText}>Cancelar</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -262,6 +464,13 @@ const styles = StyleSheet.create({
   },
   keyboardAvoid: {
     flex: 1,
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 16,
   },
   header: {
     flexDirection: 'row',
@@ -289,32 +498,47 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.75,
   },
+  disabled: {
+    opacity: 0.6,
+  },
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 24,
     gap: 16,
   },
-  badgeWrapper: {
+  inactiveBanner: {
     flexDirection: 'row',
-  },
-  badge: {
-    backgroundColor: darkTheme.surfaceSecondary,
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: darkTheme.border,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: darkTheme.surfaceSecondary,
   },
-  badgeText: {
-    fontSize: 12,
-    color: darkTheme.accent,
-    fontWeight: '500',
+  inactiveText: {
+    flex: 1,
+    fontSize: 13,
+    color: darkTheme.textSecondary,
+    lineHeight: 18,
+  },
+  inactiveAction: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: darkTheme.primary,
+  },
+  inactiveActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#ffffff',
   },
   subtitle: {
     fontSize: 14,
     color: darkTheme.textSecondary,
     lineHeight: 20,
+    textAlign: 'left',
   },
   fieldGroup: {
     gap: 8,
@@ -328,6 +552,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: darkTheme.textMuted,
     paddingTop: 2,
+  },
+  fieldHintError: {
+    color: darkTheme.error,
   },
   input: {
     height: 48,
@@ -405,16 +632,55 @@ const styles = StyleSheet.create({
     color: darkTheme.textMuted,
     lineHeight: 16,
   },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: darkTheme.border,
+    backgroundColor: darkTheme.surface,
+  },
+  passwordText: {
+    flex: 1,
+    fontSize: 14,
+    color: darkTheme.text,
+  },
+  linkDanger: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: darkTheme.error,
+  },
   footerNote: {
     fontSize: 13,
     color: darkTheme.textSecondary,
     lineHeight: 18,
   },
+  dangerZone: {
+    gap: 10,
+    paddingTop: 8,
+  },
+  dangerButton: {
+    height: 48,
+    borderRadius: 12,
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: darkTheme.errorBorder,
+    backgroundColor: darkTheme.errorBackground,
+  },
+  dangerButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: darkTheme.error,
+  },
   footer: {
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 16,
-    gap: 10,
     borderTopWidth: 1,
     borderTopColor: darkTheme.border,
     backgroundColor: darkTheme.background,
@@ -440,10 +706,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  retryButton: {
+    paddingHorizontal: 24,
+  },
   secondaryButtonText: {
     fontSize: 15,
     fontWeight: '600',
     color: darkTheme.text,
   },
 })
-
