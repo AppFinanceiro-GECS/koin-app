@@ -1,11 +1,12 @@
 import Feather from '@expo/vector-icons/Feather'
 import Ionicons from '@expo/vector-icons/Ionicons'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
 import { useMemo } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -63,6 +64,7 @@ function memberRoleLabel(member: HouseholdMember, currentUserId?: number): strin
 }
 
 export default function FamilyScreen() {
+  const queryClient = useQueryClient()
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth() + 1
@@ -72,6 +74,20 @@ export default function FamilyScreen() {
     queryKey: ['family', 'context'],
     queryFn: async () => (await familyApi.getContext()).data,
     retry: false,
+  })
+
+  const createFamilyMutation = useMutation({
+    mutationFn: async () => (await familyApi.create()).data,
+    onSuccess: (data) => {
+      queryClient.setQueryData(['family', 'context'], data)
+      queryClient.invalidateQueries({ queryKey: ['family'] })
+    },
+    onError: (err) => {
+      Alert.alert(
+        'Erro ao iniciar família',
+        getApiErrorMessage(err, 'Não foi possível criar o grupo familiar.')
+      )
+    },
   })
 
   const sharedQuery = useQuery({
@@ -106,22 +122,91 @@ export default function FamilyScreen() {
         <View style={styles.stateBox}>
           <ActivityIndicator color={darkTheme.accent} size="large" />
         </View>
+      ) : noFamily ? (
+        <ScrollView
+          contentContainerStyle={styles.emptyContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <LinearGradient
+            colors={['#1c1033', '#120b24', '#0d0718']}
+            style={styles.emptyHero}
+          >
+            <View style={styles.heroIconBadge}>
+              <Feather name="users" size={36} color="#c084fc" />
+            </View>
+            <Text style={styles.emptyTitle}>Comece sua Família no Koin</Text>
+            <Text style={styles.emptySubtitle}>
+              Organize as finanças de casa em conjunto, mantendo a privacidade do que for pessoal.
+            </Text>
+          </LinearGradient>
+
+          <View style={styles.benefitsList}>
+            <View style={styles.benefitItem}>
+              <View style={styles.benefitIconBox}>
+                <Ionicons name="pie-chart-outline" size={20} color="#a78bfa" />
+              </View>
+              <View style={styles.benefitTextBox}>
+                <Text style={styles.benefitTitle}>Visão compartilhada do mês</Text>
+                <Text style={styles.benefitDescription}>
+                  Acompanhem juntos o total gasto pela casa, com divisão clara por categorias.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.benefitItem}>
+              <View style={styles.benefitIconBox}>
+                <Ionicons name="card-outline" size={20} color="#a78bfa" />
+              </View>
+              <View style={styles.benefitTextBox}>
+                <Text style={styles.benefitTitle}>Contas e cartões da casa</Text>
+                <Text style={styles.benefitDescription}>
+                  Escolha exatamente quais contas e faturas deseja compartilhar com a família.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.benefitItem}>
+              <View style={styles.benefitIconBox}>
+                <Ionicons name="lock-closed-outline" size={20} color="#a78bfa" />
+              </View>
+              <View style={styles.benefitTextBox}>
+                <Text style={styles.benefitTitle}>Privacidade garantida</Text>
+                <Text style={styles.benefitDescription}>
+                  Cada membro mantém suas movimentações pessoais totalmente privadas.
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Criar grupo familiar"
+            onPress={() => createFamilyMutation.mutate()}
+            disabled={createFamilyMutation.isPending}
+            style={({ pressed }) => [styles.createFamilyButton, pressed && styles.pressed]}
+          >
+            {createFamilyMutation.isPending ? (
+              <ActivityIndicator color="#ffffff" size="small" />
+            ) : (
+              <>
+                <Feather name="plus-circle" size={20} color="#ffffff" style={{ marginRight: 8 }} />
+                <Text style={styles.createFamilyButtonText}>Criar grupo familiar</Text>
+              </>
+            )}
+          </Pressable>
+        </ScrollView>
       ) : familyQuery.isError || !family ? (
         <View style={styles.stateBox}>
           <Text style={styles.stateText}>
-            {noFamily
-              ? 'Sua conta ainda não está vinculada a uma família.'
-              : getApiErrorMessage(familyQuery.error, 'Não foi possível carregar a família')}
+            {getApiErrorMessage(familyQuery.error, 'Não foi possível carregar a família')}
           </Text>
-          {!noFamily && (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => familyQuery.refetch()}
-              style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
-            >
-              <Text style={styles.retryText}>Tentar novamente</Text>
-            </Pressable>
-          )}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => familyQuery.refetch()}
+            style={({ pressed }) => [styles.retryButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.retryText}>Tentar novamente</Text>
+          </Pressable>
         </View>
       ) : (
         <ScrollView
@@ -403,5 +488,92 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: darkTheme.text,
+  },
+  emptyContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 40,
+  },
+  emptyHero: {
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#3b1d6e',
+  },
+  heroIconBadge: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: 'rgba(124, 58, 237, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(192, 132, 252, 0.3)',
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: darkTheme.text,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: darkTheme.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  benefitsList: {
+    gap: 16,
+    marginBottom: 28,
+  },
+  benefitItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#110c1f',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#24173d',
+    gap: 14,
+  },
+  benefitIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  benefitTextBox: {
+    flex: 1,
+  },
+  benefitTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: darkTheme.text,
+    marginBottom: 4,
+  },
+  benefitDescription: {
+    fontSize: 13,
+    color: darkTheme.textSecondary,
+    lineHeight: 18,
+  },
+  createFamilyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: darkTheme.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  createFamilyButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 })

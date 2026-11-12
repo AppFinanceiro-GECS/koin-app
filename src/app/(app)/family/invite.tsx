@@ -1,4 +1,6 @@
+import Feather from '@expo/vector-icons/Feather'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import * as Clipboard from 'expo-clipboard'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
 import { useState } from 'react'
@@ -8,6 +10,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -35,7 +38,9 @@ function formatExpiry(iso: string): string {
 export default function FamilyInviteScreen() {
   const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
+  const [nickname, setNickname] = useState('')
   const [sent, setSent] = useState<FamilyInviteResponse | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const familyQuery = useQuery({
     queryKey: ['family', 'context'],
@@ -46,7 +51,8 @@ export default function FamilyInviteScreen() {
   const canInvite = Boolean(family?.can_invite) && (family?.member_count ?? 0) < (family?.max_members ?? 0)
 
   const invite = useMutation({
-    mutationFn: async () => (await familyApi.invite(email.trim())).data,
+    mutationFn: async () =>
+      (await familyApi.invite(email.trim(), nickname.trim() || undefined)).data,
     onSuccess: (data) => {
       setSent(data)
       queryClient.invalidateQueries({ queryKey: ['family'] })
@@ -55,6 +61,26 @@ export default function FamilyInviteScreen() {
 
   const emailValid = EMAIL_PATTERN.test(email.trim())
   const submitDisabled = !sent && (!emailValid || invite.isPending || !canInvite)
+
+  const handleCopy = async () => {
+    if (!sent?.invite_url) return
+    await Clipboard.setStringAsync(sent.invite_url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2500)
+  }
+
+  const handleShare = async () => {
+    if (!sent?.invite_url) return
+    try {
+      await Share.share({
+        title: 'Convite para o Koin',
+        message: `Você foi convidado para participar da minha família no Koin! Acesse o link para aceitar o convite: ${sent.invite_url}`,
+        url: sent.invite_url,
+      })
+    } catch (err) {
+      console.warn('Erro ao compartilhar:', err)
+    }
+  }
 
   const onSubmit = () => {
     if (sent) return router.back()
@@ -94,6 +120,18 @@ export default function FamilyInviteScreen() {
             placeholderTextColor={darkTheme.textMuted}
             style={[styles.input, sent && styles.inputLocked]}
             value={email}
+          />
+
+          <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Apelido ou primeiro nome (opcional)</Text>
+          <TextInput
+            accessibilityLabel="Apelido ou primeiro nome (opcional)"
+            autoCapitalize="words"
+            editable={!sent && !invite.isPending}
+            onChangeText={setNickname}
+            placeholder="Ex: Mãe, Pedro, Lucas"
+            placeholderTextColor={darkTheme.textMuted}
+            style={[styles.input, sent && styles.inputLocked]}
+            value={nickname}
           />
 
           <Text style={styles.sectionTitle}>O que essa pessoa pode fazer</Text>
@@ -140,7 +178,6 @@ export default function FamilyInviteScreen() {
             style={styles.infoCard}
           >
             <Text style={styles.infoLabel}>{sent ? 'Convite enviado' : 'Validade do convite'}</Text>
-            {/* TODO: a API não devolve código de convite e a validade (48 h) é definida no backend. */}
             <Text style={styles.infoValue}>{sent ? `Até ${formatExpiry(sent.expires_at)}` : '48 horas'}</Text>
             <Text style={styles.infoBody}>
               {sent
@@ -148,6 +185,44 @@ export default function FamilyInviteScreen() {
                 : 'Enviamos um link por e-mail que já preenche o cadastro.'}
             </Text>
           </LinearGradient>
+
+          {sent?.invite_url && (
+            <View style={styles.shareCard}>
+              <Text style={styles.shareTitle}>Compartilhar convite diretamente</Text>
+              <Text style={styles.shareSubtitle}>
+                Envie o link para a pessoa por WhatsApp ou copie para a área de transferência.
+              </Text>
+
+              <View style={styles.shareButtonsRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Compartilhar link de convite"
+                  onPress={handleShare}
+                  style={({ pressed }) => [styles.shareActionButton, pressed && styles.pressed]}
+                >
+                  <Feather name="share-2" size={16} color="#ffffff" style={{ marginRight: 6 }} />
+                  <Text style={styles.shareActionText}>Compartilhar</Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Copiar link de convite"
+                  onPress={handleCopy}
+                  style={({ pressed }) => [styles.copyActionButton, pressed && styles.pressed]}
+                >
+                  <Feather
+                    name={copied ? 'check' : 'copy'}
+                    size={16}
+                    color={copied ? '#4ade80' : darkTheme.accent}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={[styles.copyActionText, copied && { color: '#4ade80' }]}>
+                    {copied ? 'Copiado!' : 'Copiar link'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
         </ScrollView>
 
         <View style={styles.footer}>
@@ -327,6 +402,60 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: darkTheme.textSecondary,
     marginTop: 10,
+  },
+  shareCard: {
+    backgroundColor: '#130d24',
+    borderRadius: 16,
+    padding: 18,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#3b1d6e',
+  },
+  shareTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: darkTheme.text,
+    marginBottom: 4,
+  },
+  shareSubtitle: {
+    fontSize: 13,
+    color: darkTheme.textSecondary,
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  shareButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  shareActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: darkTheme.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  shareActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  copyActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.3)',
+  },
+  copyActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: darkTheme.accent,
   },
   footer: {
     paddingHorizontal: 16,

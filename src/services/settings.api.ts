@@ -36,6 +36,9 @@ export const apiKeysApi = {
 }
 
 export const familyApi = {
+  // Criar/iniciar familia
+  create: (data?: { nickname?: string }) => api.post<FamilyContext>('/family', data ?? {}),
+
   // Contexto da familia
   getContext: () => api.get<FamilyContext>('/family/context'),
 

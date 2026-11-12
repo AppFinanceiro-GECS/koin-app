@@ -210,6 +210,8 @@ export interface FamilyInviteResponse {
   email: string
   status: string
   expires_at: string
+  invite_url?: string
+  token?: string
 }
 
 export type DocumentStage =
