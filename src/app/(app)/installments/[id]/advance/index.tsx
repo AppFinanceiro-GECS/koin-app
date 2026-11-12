@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
     borderColor: darkTheme.primary,
   },
   statusSelected: {
-    color: darkTheme.primary,
+    color: darkTheme.accent,
     fontWeight: '600',
   },
   cardIcon: {
