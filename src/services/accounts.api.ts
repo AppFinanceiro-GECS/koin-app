@@ -1,5 +1,5 @@
 import api from './api'
-import type { Account } from '../types/api'
+import type { Account, CreditCardDetail, CreditCardListItem, CreditCardWrite } from '../types/api'
 
 export const accountsApi = {
   list: () => api.get<Account[]>('/accounts'),
@@ -10,11 +10,14 @@ export const accountsApi = {
 }
 
 export const creditCardsApi = {
-  list: () => api.get('/credit-cards'),
-  get: (id: number) => api.get(`/credit-cards/${id}`),
-  create: (data: unknown) => api.post('/credit-cards', data),
-  update: (id: number, data: unknown) => api.patch(`/credit-cards/${id}`, data),
-  delete: (id: number) => api.delete(`/credit-cards/${id}`),
+  list: () => api.get<CreditCardListItem[]>('/credit-cards'),
+  get: (id: number) => api.get<CreditCardDetail>(`/credit-cards/${id}`),
+  create: (data: CreditCardWrite) => api.post<CreditCardDetail>('/credit-cards', data),
+  update: (id: number, data: CreditCardWrite) =>
+    api.patch<CreditCardDetail>(`/credit-cards/${id}`, data),
+  // Sem force, cartão com lançamentos/faturas devolve 409 (CreditCardLinkedData)
+  delete: (id: number, options?: { force?: boolean }) =>
+    api.delete(`/credit-cards/${id}`, { params: options?.force ? { force: true } : {} }),
   recalculateInvoices: (id: number) => api.post(`/credit-cards/${id}/recalculate-invoices`),
   projectRecurring: (id: number, monthsAhead?: number) =>
     api.post(`/credit-cards/${id}/project-recurring`, null, {

@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { getApiErrorMessage } from '@/lib/errors'
 import { formatCurrency, parseAmount, toISODate } from '@/lib/format'
+import { activeCreditCards, creditCardLabel } from '@/lib/creditCards'
 import { accountsApi, creditCardsApi } from '@/services/accounts.api'
 import { categoriesApi, transactionsApi } from '@/services/transactions.api'
 import { darkTheme } from '@/theme/colors'
@@ -78,34 +79,31 @@ export default function NewTransactionScreen() {
       label: string
       type: 'card' | 'account' | 'cash'
       id?: number
+      accountId?: number
     }[] = []
 
-    if (cardsQuery.data && cardsQuery.data.length > 0) {
-      cardsQuery.data.forEach((c: { id: number; name?: string; brand?: string; last_digits?: string }) => {
-        list.push({
-          key: `card-${c.id}`,
-          label: c.name || `Cartão ${c.brand || ''} ••${c.last_digits || ''}`,
-          type: 'card',
-          id: c.id,
-        })
+    activeCreditCards(cardsQuery.data).forEach((c) => {
+      list.push({
+        key: `card-${c.id}`,
+        label: creditCardLabel(c),
+        type: 'card',
+        id: c.id,
+        accountId: c.account_id,
       })
-    } else {
-      list.push({ key: 'card-nubank', label: 'Cartão Nubank', type: 'card' })
-      list.push({ key: 'card-inter', label: 'Cartão Inter', type: 'card' })
-    }
+    })
 
-    if (accountsQuery.data && accountsQuery.data.length > 0) {
-      accountsQuery.data.forEach((a) => {
-        list.push({
-          key: `acc-${a.id}`,
-          label: a.name,
-          type: 'account',
-          id: a.id,
-        })
+    // a conta do cartão já entra como opção "card" acima
+    const plainAccounts = (accountsQuery.data ?? []).filter(
+      (a) => a.type !== 'credit_card' && a.is_active !== false
+    )
+    plainAccounts.forEach((a) => {
+      list.push({
+        key: `acc-${a.id}`,
+        label: a.name,
+        type: 'account',
+        id: a.id,
       })
-    } else {
-      list.push({ key: 'acc-itau', label: 'Conta Itaú', type: 'account' })
-    }
+    })
 
     list.push({ key: 'cash', label: 'Dinheiro', type: 'cash' })
     return list
@@ -162,7 +160,8 @@ export default function NewTransactionScreen() {
       return
     }
 
-    const firstAccountId = accountsQuery.data?.[0]?.id ?? 1
+    const firstAccountId =
+      accountsQuery.data?.find((a) => a.type !== 'credit_card')?.id ?? accountsQuery.data?.[0]?.id ?? 1
     const matchingCat = categoriesQuery.data?.find((c) => c.name === selectedCategoryName)?.id
 
     let accountId = firstAccountId
@@ -173,6 +172,8 @@ export default function NewTransactionScreen() {
       const selectedOpt = paymentOptions.find((p) => p.key === activePaymentKey)
       if (selectedOpt?.type === 'card') {
         creditCardId = selectedOpt.id
+        // a compra entra na conta do próprio cartão, não na primeira conta da lista
+        if (selectedOpt.accountId) accountId = selectedOpt.accountId
         paymentMethod = 'credit_card'
       } else if (selectedOpt?.type === 'account' && selectedOpt.id) {
         accountId = selectedOpt.id

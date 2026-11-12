@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { ScopeToggle, type Scope } from '@/components/ScopeToggle'
 import { formatCurrency } from '@/lib/format'
 import { accountsApi, creditCardsApi } from '@/services/accounts.api'
+import { creditCardLabel } from '@/lib/creditCards'
 import { analyticsApi } from '@/services/analytics.api'
 import { notificationsApi } from '@/services/settings.api'
 import { darkTheme } from '@/theme/colors'
@@ -207,17 +208,24 @@ export default function DashboardScreen() {
 
         {/* Faturas Card */}
         <View style={styles.invoicesCard}>
-          {cardsQuery.data && cardsQuery.data.length > 0 ? (
-            cardsQuery.data.map((card: any, idx: number) => {
-              const cardName = card.nickname || card.name || `Cartão final ${card.last_four_digits || ''}`
-              const closingText = `Fecha dia ${card.closing_day || 24} • vence ${card.due_day || '04'}`
-              const balanceText = formatCurrency(Math.abs(Number(card.account_balance) || 0))
+          {cardsQuery.data && cardsQuery.data.some((card) => card.is_active !== false) ? (
+            cardsQuery.data.filter((card) => card.is_active !== false).map((card, idx) => {
+              const cardName = creditCardLabel(card)
+              const closingText = `Fecha dia ${card.closing_day} • vence dia ${card.due_day}`
+              const balanceText = formatCurrency(Math.max(Number(card.current_balance) || 0, 0))
               return (
                 <View key={String(card.id)}>
                   {idx > 0 && <View style={styles.invoiceDivider} />}
                   <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Faturas do cartão ${cardName}`}
                     style={styles.invoiceItem}
-                    onPress={() => router.push('/accounts')}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/invoices',
+                        params: { creditCardId: String(card.id), creditCardName: cardName },
+                      } as any)
+                    }
                   >
                     <View style={styles.invoiceIconWrapper}>
                       <Feather name="credit-card" size={18} color={darkTheme.accent} />

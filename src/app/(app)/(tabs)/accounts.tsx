@@ -14,12 +14,21 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { creditCardLabel } from '@/lib/creditCards'
+import { getApiErrorMessage } from '@/lib/errors'
 import { formatCurrency } from '@/lib/format'
 import { accountsApi, creditCardsApi } from '@/services/accounts.api'
 import { notificationsApi } from '@/services/settings.api'
 import { transactionsApi } from '@/services/transactions.api'
 import { useAuthStore } from '@/stores/authStore'
 import { darkTheme } from '@/theme/colors'
+
+const ACCOUNT_TYPE_LABELS: Record<string, string> = {
+  bank: 'Conta corrente',
+  wallet: 'Carteira',
+  investment: 'Investimento',
+  benefit_card: 'Cartão benefício',
+}
 
 interface AccountItem {
   id: string | number
@@ -43,13 +52,18 @@ export default function AccountsScreen() {
     queryKey: ['credit-cards'],
     queryFn: async () => (await creditCardsApi.list()).data,
   })
+  // ativos primeiro; desativados continuam visíveis para reativar ou excluir
+  const cards = [...(cardsQuery.data ?? [])].sort((a, b) => Number(b.is_active) - Number(a.is_active))
 
   const accountsList: AccountItem[] =
     accountsQuery.data && accountsQuery.data.length > 0
-      ? accountsQuery.data.map((a) => ({
+      ? accountsQuery.data
+          // o cartão de crédito já aparece na aba Cartões, com limite e fatura
+          .filter((a) => a.type !== 'credit_card')
+          .map((a) => ({
           id: a.id,
           name: a.name,
-          type: a.type === 'bank' ? 'Conta corrente' : a.type === 'wallet' ? 'Carteira' : a.type,
+          type: ACCOUNT_TYPE_LABELS[a.type] ?? a.type,
           balance: Number(a.balance) || 0,
           shared: a.ownership_type === 'household',
         }))
@@ -168,43 +182,59 @@ export default function AccountsScreen() {
           /* ======================= ABA CARTÕES ======================= */
           <View style={styles.sectionGap}>
             {/* Lista de Cartões (Reais da API ou Fallback do Figma) */}
-            {cardsQuery.data && cardsQuery.data.length > 0 ? (
-              cardsQuery.data.map((card: any, idx: number) => {
-                const title = card.nickname || card.account_name || `Cartão final ${card.last_four_digits || ''}`
-                const subtitle = `Fecha dia ${card.closing_day || 24}, vence dia ${card.due_day || '04'}`
-                const limit = Number(card.credit_limit) || 8000
-                const balance = Math.abs(Number(card.account_balance) || 0)
-                const available = Math.max(limit - balance, 0)
-                const percentage = limit > 0 ? Math.min((balance / limit) * 100, 100) : 50
+            {cardsQuery.isError && !cardsQuery.data ? (
+              <View style={styles.emptyCardBox}>
+                <Text style={styles.emptyCardTitle}>Não foi possível carregar os cartões</Text>
+                <Text style={styles.emptyCardSubtitle}>
+                  {getApiErrorMessage(cardsQuery.error, 'Puxe a tela para baixo para tentar de novo.')}
+                </Text>
+              </View>
+            ) : cards.length > 0 ? (
+              cards.map((card, idx) => {
+                const title = creditCardLabel(card)
+                const subtitle = `Fecha dia ${card.closing_day}, vence dia ${card.due_day}`
+                const limit = Number(card.credit_limit) || 0
+                const used = Math.max(Number(card.current_balance) || 0, 0)
+                const available = Math.max(Number(card.available_limit) || 0, 0)
+                const percentage = limit > 0 ? Math.min((used / limit) * 100, 100) : 0
+                const inactive = card.is_active === false
 
                 return (
                   <Pressable
                     key={String(card.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Faturas do cartão ${title}`}
                     onPress={() =>
                       router.push({
                         pathname: '/invoices',
-                        params: { creditCardId: String(card.id), creditCardName: card.name },
+                        params: { creditCardId: String(card.id), creditCardName: title },
                       } as any)
                     }
-                    style={({ pressed }) => [pressed && styles.buttonPressed, { marginBottom: 14 }]}
+                    style={({ pressed }) => [pressed && styles.buttonPressed, inactive && styles.cardInactive, { marginBottom: 14 }]}
                   >
                     <LinearGradient
-                      colors={idx === 0 ? ['#0f0b1e', '#1f0c3b', '#0a0414'] : ['#120e1e', '#120e1e']}
+                      colors={idx === 0 && !inactive ? ['#0f0b1e', '#1f0c3b', '#0a0414'] : ['#120e1e', '#120e1e']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
-                      style={idx === 0 ? styles.cardGradient : styles.darkCard}
+                      style={idx === 0 && !inactive ? styles.cardGradient : styles.darkCard}
                     >
                       <View style={styles.cardHeaderRow}>
                         <View style={styles.cardHeader}>
                           <Text style={styles.cardTitle}>{title}</Text>
-                          <Text style={styles.cardSubtitle}>{subtitle}</Text>
+                          <Text style={styles.cardSubtitle}>
+                            {inactive ? 'Desativado · ' : ''}
+                            {subtitle}
+                          </Text>
                         </View>
                         <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Editar ou excluir ${title}`}
+                          hitSlop={10}
                           onPress={(e) => {
                             e.stopPropagation()
-                            router.push(`/credit-card/modal?id=${card.id}` as any)
+                            router.push({ pathname: '/credit-card/modal', params: { id: String(card.id) } } as any)
                           }}
-                          style={styles.editButton}
+                          style={({ pressed }) => [styles.editButton, pressed && styles.buttonPressed]}
                         >
                           <Ionicons name="pencil" size={16} color="#a855f7" />
                         </Pressable>
@@ -212,10 +242,10 @@ export default function AccountsScreen() {
 
                       <View style={styles.invoiceRow}>
                         <View style={styles.invoiceCol}>
-                          <Text style={styles.invoiceLabel}>Fatura atual</Text>
-                          <Text style={styles.statusBadgePurple}>Em aberto</Text>
+                          <Text style={styles.invoiceLabel}>Faturas em aberto</Text>
+                          {used > 0 && <Text style={styles.statusBadgePurple}>A pagar</Text>}
                         </View>
-                        <Text style={styles.invoiceValue}>{formatCurrency(balance)}</Text>
+                        <Text style={styles.invoiceValue}>{formatCurrency(used)}</Text>
                       </View>
 
                       {/* Barra de Limite */}
@@ -582,9 +612,12 @@ const styles = StyleSheet.create({
     gap: 4,
     flex: 1,
   },
+  cardInactive: {
+    opacity: 0.6,
+  },
   editButton: {
-    padding: 6,
-    borderRadius: 6,
+    padding: 10,
+    borderRadius: 10,
     backgroundColor: 'rgba(168, 85, 247, 0.1)',
   },
   cardTitle: {
