@@ -5,6 +5,7 @@ import type {
   DocumentAsyncUploadResponse,
   DocumentResponse,
   DocumentSummary,
+  InvoiceOutlook,
   InvoiceOverview,
 } from '../types/api'
 
@@ -116,6 +117,8 @@ export const invoicesApi = {
     limit?: number
     offset?: number
   }) => api.get('/invoices', { params }),
+  outlook: (months = 6, scope: 'me' | 'family' = 'me') =>
+    api.get<InvoiceOutlook>('/invoices/outlook', { params: { months, scope } }),
   overview: (year: number, month: number) =>
     api.get<InvoiceOverview>('/invoices/overview', { params: { year, month } }),
   get: (id: number) => api.get(`/invoices/${id}`),

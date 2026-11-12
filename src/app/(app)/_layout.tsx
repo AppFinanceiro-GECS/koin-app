@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { Stack } from 'expo-router'
+import { router, Stack } from 'expo-router'
 import { useEffect } from 'react'
 
+import { hasSeenOnboarding } from '@/lib/onboarding'
 import { authApi } from '@/services/auth.api'
 import { useAuthStore } from '@/stores/authStore'
 import { darkTheme } from '@/theme/colors'
@@ -17,6 +18,19 @@ export default function AppLayout() {
     if (user) setUser(user)
   }, [user, setUser])
 
+  // Primeiro acesso de cada usuário neste aparelho: tutorial antes do Início
+  const userId = user?.id
+  useEffect(() => {
+    if (!userId) return
+    let cancelled = false
+    hasSeenOnboarding(userId).then((seen) => {
+      if (!seen && !cancelled) router.replace('/onboarding')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
+
   return (
     <Stack
       screenOptions={{
@@ -28,6 +42,7 @@ export default function AppLayout() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }} />
       <Stack.Screen name="notifications" options={{ headerShown: false }} />
       <Stack.Screen name="installments" options={{ headerShown: false }} />
       <Stack.Screen name="invoices" options={{ headerShown: false }} />

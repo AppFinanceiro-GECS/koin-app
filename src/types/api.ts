@@ -369,7 +369,35 @@ export interface DocumentResponse {
   extracted_items: ExtractedItem[]
   is_duplicate: boolean
   card_info?: CardInfo | null
+  card_match?: CardMatch | null
   payment_info?: PaymentInfo | null
+}
+
+/** Cartão que a fatura descreve, para cadastrar com um toque */
+export interface CardSuggestion {
+  name: string
+  last_four_digits: string | null
+  bank_id: string | null
+  card_brand: string | null
+  closing_day: number | null
+  due_day: number | null
+  credit_limit: number | null
+}
+
+/** De qual cartão é o documento (koin-api: GET /documents/{id}) */
+export interface CardMatch {
+  status: 'matched' | 'new' | 'ambiguous' | 'none'
+  credit_card_id: number | null
+  credit_card_name: string | null
+  candidate_ids: number[]
+  suggestion: CardSuggestion | null
+}
+
+/** GET /invoices/outlook: parcelas já compradas por mês de fatura */
+export interface InvoiceOutlook {
+  scope: 'me' | 'family'
+  months: { year: number; month: number; total: number; installments_count: number }[]
+  total: number
 }
 
 export interface DocumentAsyncUploadResponse {

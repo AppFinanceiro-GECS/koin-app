@@ -24,8 +24,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { getDuplicateDocumentId } from '@/lib/documents'
+import { getApiErrorMessage } from '@/lib/errors'
 import { formatCurrency } from '@/lib/format'
-import { activeCreditCards, creditCardLabel } from '@/lib/creditCards'
+import { InvoiceCardBanner } from '@/components/invoices/InvoiceCardBanner'
+import { activeCreditCards, creditCardLabel, invalidateCreditCardQueries } from '@/lib/creditCards'
 import { accountsApi, creditCardsApi } from '@/services/accounts.api'
 import { documentsApi } from '@/services/documents.api'
 import { familyApi } from '@/services/settings.api'
@@ -108,8 +110,12 @@ export default function InvoiceImportScreen() {
 
   // Inputs
   const [userSelectedCard, setSelectedCard] = useState<string | null>(null)
+  // Cartão escolhido antes de enviar (opcional: sem escolha, a fatura diz de qual cartão é)
   const [selectedCardId, setSelectedCardId] = useState<number | null>(null)
-  const [selectedInvoice, setSelectedInvoice] = useState('Outubro de 2026, fechou em 28/09')
+  // Cartão escolhido ou cadastrado na revisão
+  const [reviewCardId, setReviewCardId] = useState<number | null>(null)
+  const [creatingCard, setCreatingCard] = useState(false)
+  const [selectedInvoice, setSelectedInvoice] = useState('Mês lido da própria fatura')
   const [selectedFile, setSelectedFile] = useState<{
     name: string
     size: string
@@ -184,8 +190,8 @@ export default function InvoiceImportScreen() {
 
   // Cartão escolhido pelo id (dois cartões podem ter o mesmo nome); sem escolha, o primeiro ativo
   const activeCards = activeCreditCards(cards)
-  const activeCard = activeCards.find((c) => c.id === selectedCardId) ?? activeCards[0]
-  const selectedCard = activeCard ? creditCardLabel(activeCard) : 'Nenhum cartão cadastrado'
+  const activeCard = activeCards.find((c) => c.id === selectedCardId)
+  const selectedCard = activeCard ? creditCardLabel(activeCard) : 'Descobrir pela fatura'
 
   const receiptAccount =
     userReceiptAccount ??
@@ -605,17 +611,34 @@ export default function InvoiceImportScreen() {
     setEditingItem(null)
   }
 
+  // "2026-03-05" -> 5 (dia de fechamento/vencimento lido da fatura)
+  const dayOf = (iso?: string | null) => {
+    const day = iso ? Number(iso.slice(8, 10)) : NaN
+    return day >= 1 && day <= 31 ? day : undefined
+  }
+
   const confirmMutation = useMutation({
     mutationFn: async () => {
       const today = new Date().toISOString().split('T')[0]
-      const targetAccountId = (Array.isArray(accounts) && accounts[0]?.id) || 1
+      // compra no cartão entra na conta do cartão; cupom e nota, numa conta comum
+      const plainAccounts = (Array.isArray(accounts) ? accounts : []).filter((a) => a.type !== 'credit_card')
+      const receiptAccountId =
+        plainAccounts.find((a) => a.name === userReceiptAccount)?.id ?? plainAccounts[0]?.id
 
       if (docType === 'invoice') {
+        if (!reviewCard) {
+          throw new Error('Escolha ou cadastre o cartão desta fatura antes de confirmar.')
+        }
+        const info = documentData?.card_info
         const batchItems = items
           .filter((i) => i.selected)
           .map((i) => ({
             document_id: uploadedDocumentId || undefined,
-            account_id: targetAccountId,
+            account_id: reviewCard.account_id,
+            credit_card_id: reviewCard.id,
+            payment_method: 'credit_card' as const,
+            invoice_month: info?.invoice_month ?? undefined,
+            invoice_year: info?.invoice_year ?? undefined,
             amount: Math.abs(i.amount),
             date: i.rawDate || today,
             description: i.description,
@@ -625,42 +648,42 @@ export default function InvoiceImportScreen() {
             installment_total: i.installmentTotal ?? (i.installmentInfo ? 1 : undefined),
             ownership_type: (i.shareWithFamily ? 'household' : 'personal') as 'personal' | 'household',
           }))
+        if (batchItems.length === 0) throw new Error('Selecione ao menos um lançamento.')
 
-        try {
-          await transactionsApi.batchConfirm({ items: batchItems as any })
-        } catch (err) {
-          console.warn('Batch confirm API fallback:', err)
+        const res = await transactionsApi.batchConfirm({
+          items: batchItems as any,
+          // a fatura é a fonte das datas do cartão
+          card_closing_day: info?.closing_day ?? dayOf(info?.closing_date) ?? undefined,
+          card_due_day: info?.due_day ?? dayOf(info?.due_date) ?? undefined,
+        } as any)
+        const result = res.data as { error_count?: number; success_count?: number; results?: { error?: string | null }[] }
+        if (result?.error_count && !result.success_count) {
+          throw new Error(result.results?.find((r) => r.error)?.error || 'Nenhum lançamento foi salvo.')
         }
       } else {
         const activeItems = items.filter((i) => i.selected)
-        const receiptItems = activeItems.length > 0 ? activeItems : [
-          { description: 'Arroz 5 kg', amount: 29.9, shareWithFamily: false, rawDate: null },
-          { description: 'Café 500 g', amount: 22.5, shareWithFamily: false, rawDate: null },
-          { description: 'Frutas e verduras', amount: 35.0, shareWithFamily: false, rawDate: null },
-        ]
+        if (activeItems.length === 0) throw new Error('Selecione ao menos um item.')
+        if (!receiptAccountId) throw new Error('Cadastre uma conta para registrar esta despesa.')
 
-        try {
-          for (const ci of receiptItems) {
-            await transactionsApi.create({
-              type: 'expense',
-              amount: Math.abs(ci.amount),
-              date: ci.rawDate || today,
-              account_id: targetAccountId,
-              description: ci.description,
-              ownership_type: ci.shareWithFamily ? 'household' : 'personal',
-            })
-          }
-        } catch (err) {
-          console.warn('Coupon create API fallback:', err)
+        for (const ci of activeItems) {
+          await transactionsApi.create({
+            type: 'expense',
+            amount: Math.abs(ci.amount),
+            date: ci.rawDate || today,
+            account_id: receiptAccountId,
+            description: ci.description,
+            ownership_type: ci.shareWithFamily ? 'household' : 'personal',
+          })
         }
       }
 
-      // Invalida e recarrega dados no app
-      queryClient.invalidateQueries({ queryKey: ['transactions'] })
-      queryClient.invalidateQueries({ queryKey: ['invoices'] })
-      queryClient.invalidateQueries({ queryKey: ['accounts'] })
-      queryClient.invalidateQueries({ queryKey: ['credit-cards'] })
-      queryClient.invalidateQueries({ queryKey: ['analytics'] })
+      await invalidateCreditCardQueries(queryClient)
+    },
+    onError: (err) => {
+      Alert.alert(
+        'Não foi possível salvar',
+        err instanceof Error && !(err as any).response ? err.message : getApiErrorMessage(err, 'Tente de novo em instantes.')
+      )
     },
     onSuccess: () => {
       setStep('completed')
@@ -673,7 +696,49 @@ export default function InvoiceImportScreen() {
     return true
   })
 
+  // De qual cartão é a fatura: escolha na revisão > reconhecido pela API > escolhido no envio >
+  // cartão recém-cadastrado com o mesmo final da fatura
+  const cardMatch = documentData?.card_match
+  const suggestedDigits = cardMatch?.suggestion?.last_four_digits
+  const reviewCard =
+    activeCards.find((c) => c.id === reviewCardId) ??
+    activeCards.find((c) => cardMatch?.status === 'matched' && c.id === cardMatch.credit_card_id) ??
+    activeCards.find((c) => c.id === selectedCardId) ??
+    (suggestedDigits ? activeCards.find((c) => c.last_four_digits === suggestedDigits) : undefined)
+
+  const handleCreateCardFromInvoice = async () => {
+    if (!uploadedDocumentId) return
+    setCreatingCard(true)
+    try {
+      const res = await creditCardsApi.createFromDocument(uploadedDocumentId)
+      await invalidateCreditCardQueries(queryClient)
+      setReviewCardId(res.data.id)
+    } catch (err) {
+      Alert.alert('Não foi possível cadastrar o cartão', getApiErrorMessage(err, 'Tente de novo ou cadastre manualmente.'))
+    } finally {
+      setCreatingCard(false)
+    }
+  }
+
+  const handleAdjustCardFromInvoice = () => {
+    const s = cardMatch?.suggestion
+    router.push({
+      pathname: '/credit-card/modal',
+      params: s
+        ? {
+            name: s.name,
+            digits: s.last_four_digits ?? '',
+            brand: s.card_brand ?? '',
+            limit: s.credit_limit ? String(s.credit_limit) : '',
+            closingDay: s.closing_day ? String(s.closing_day) : '',
+            dueDay: s.due_day ? String(s.due_day) : '',
+          }
+        : {},
+    } as any)
+  }
+
   const cardTitle =
+    (reviewCard ? creditCardLabel(reviewCard) : null) ||
     documentData?.card_info?.card_name ||
     documentData?.card_info?.card_bank ||
     documentData?.card_info?.card_issuer ||
@@ -852,16 +917,19 @@ export default function InvoiceImportScreen() {
                 style={styles.fieldInput}
                 onPress={() => {
                   if (activeCards.length === 0) {
-                    Alert.alert('Nenhum cartão cadastrado', 'Cadastre o cartão da fatura para o Koin separar as compras.', [
-                      { text: 'Cancelar', style: 'cancel' },
-                      { text: 'Cadastrar cartão', onPress: () => router.push('/credit-card/modal') },
-                    ])
+                    Alert.alert(
+                      'Descobrimos pela fatura',
+                      'Envie a fatura: o Koin lê o banco, o final e as datas e cadastra o cartão para você.'
+                    )
                     return
                   }
-                  const cardOptions = activeCards.map((c) => ({
-                    text: creditCardLabel(c),
-                    onPress: () => setSelectedCardId(c.id),
-                  }))
+                  const cardOptions = [
+                    { text: 'Descobrir pela fatura', onPress: () => setSelectedCardId(null) },
+                    ...activeCards.map((c) => ({
+                      text: creditCardLabel(c),
+                      onPress: () => setSelectedCardId(c.id),
+                    })),
+                  ]
                   Alert.alert('Selecionar Cartão', 'Selecione o cartão de crédito emitente da fatura:', [
                     ...cardOptions,
                     { text: 'Cancelar', style: 'cancel' },
@@ -873,22 +941,13 @@ export default function InvoiceImportScreen() {
               </Pressable>
             </View>
 
-            {/* Fatura selector */}
+            {/* Fatura: o mês vem da própria fatura lida, não de uma lista */}
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>Fatura</Text>
-              <Pressable
-                style={styles.fieldInput}
-                onPress={() => {
-                  Alert.alert('Selecionar Fatura', 'Selecione o mês da fatura:', [
-                    { text: 'Outubro de 2026, fechou em 28/09', onPress: () => setSelectedInvoice('Outubro de 2026, fechou em 28/09') },
-                    { text: 'Novembro de 2026 (aberta)', onPress: () => setSelectedInvoice('Novembro de 2026 (aberta)') },
-                    { text: 'Cancelar', style: 'cancel' },
-                  ])
-                }}
-              >
+              <View style={styles.fieldInput}>
                 <Text style={styles.fieldValue}>{selectedInvoice}</Text>
-                <Ionicons name="chevron-down" size={16} color={darkTheme.textMuted} />
-              </Pressable>
+                <Ionicons name="sparkles-outline" size={16} color={darkTheme.textMuted} />
+              </View>
             </View>
 
             {/* Tipo de Documento: Fatura vs Cupom fiscal */}
@@ -1138,6 +1197,16 @@ export default function InvoiceImportScreen() {
         {step === 'review' && docType === 'invoice' && (
           <View style={styles.stepWrapper}>
             {renderStepper()}
+
+            <InvoiceCardBanner
+              match={cardMatch}
+              cards={activeCards}
+              selectedCardId={reviewCard?.id ?? null}
+              onSelect={setReviewCardId}
+              onCreate={handleCreateCardFromInvoice}
+              onAdjust={handleAdjustCardFromInvoice}
+              creating={creatingCard}
+            />
 
             {/* Card Conferência */}
             <View style={styles.conferenceCard}>

@@ -264,16 +264,19 @@ export default function AccountsScreen() {
             ) : (
               <View style={styles.emptyCardBox}>
                 <Feather name="credit-card" size={32} color={darkTheme.textSecondary} />
-                <Text style={styles.emptyCardTitle}>Nenhum cartão cadastrado</Text>
+                <Text style={styles.emptyCardTitle}>Nenhum cartão ainda</Text>
                 <Text style={styles.emptyCardSubtitle}>
-                  Cadastre seus cartões de crédito para acompanhar limites, fechamentos e faturas.
+                  Envie a fatura e o Koin cadastra o cartão com banco, final, fechamento e vencimento.
                 </Text>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => router.push('/credit-card/modal')}
+                  onPress={() => router.push('/invoice/import')}
                   style={({ pressed }) => [styles.emptyAddButton, pressed && styles.buttonPressed]}
                 >
-                  <Text style={styles.emptyAddButtonText}>Cadastrar novo cartão</Text>
+                  <Text style={styles.emptyAddButtonText}>Enviar fatura</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" onPress={() => router.push('/credit-card/modal')} hitSlop={8}>
+                  <Text style={styles.emptyManualLink}>Cadastrar na mão</Text>
                 </Pressable>
               </View>
             )}
@@ -611,6 +614,12 @@ const styles = StyleSheet.create({
   cardHeader: {
     gap: 4,
     flex: 1,
+  },
+  emptyManualLink: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: darkTheme.accent,
+    paddingTop: 4,
   },
   cardInactive: {
     opacity: 0.6,

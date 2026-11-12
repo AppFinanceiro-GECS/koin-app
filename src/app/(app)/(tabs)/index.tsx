@@ -14,10 +14,13 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { CommittedOutlook } from '@/components/home/CommittedOutlook'
+import { StartWithInvoiceHero } from '@/components/home/StartWithInvoiceHero'
 import { ScopeToggle, type Scope } from '@/components/ScopeToggle'
+import { activeCreditCards, creditCardLabel } from '@/lib/creditCards'
 import { formatCurrency } from '@/lib/format'
 import { accountsApi, creditCardsApi } from '@/services/accounts.api'
-import { creditCardLabel } from '@/lib/creditCards'
+import { invoicesApi } from '@/services/documents.api'
 import { analyticsApi } from '@/services/analytics.api'
 import { notificationsApi } from '@/services/settings.api'
 import { darkTheme } from '@/theme/colors'
@@ -60,6 +63,14 @@ export default function DashboardScreen() {
     queryFn: async () => (await creditCardsApi.list()).data,
   })
 
+  const activeCards = activeCreditCards(cardsQuery.data)
+
+  // Parcelas já compradas nas faturas dos próximos meses (só eu ou família)
+  const outlookQuery = useQuery({
+    queryKey: ['invoices', 'outlook', filterMode],
+    queryFn: async () => (await invoicesApi.outlook(6, filterMode)).data,
+  })
+
   const notificationsQuery = useQuery({
     queryKey: ['notifications', 'unread-count'],
     queryFn: async () => (await notificationsApi.getUnreadCount()).data,
@@ -70,8 +81,10 @@ export default function DashboardScreen() {
     summaryQuery.isRefetching ||
     accountsQuery.isRefetching ||
     notificationsQuery.isRefetching ||
-    cardsQuery.isRefetching
+    cardsQuery.isRefetching ||
+    outlookQuery.isRefetching
   const onRefresh = () => {
+    outlookQuery.refetch()
     summaryQuery.refetch()
     accountsQuery.refetch()
     notificationsQuery.refetch()
@@ -127,6 +140,60 @@ export default function DashboardScreen() {
         }
       >
         <ScopeToggle value={filterMode} onChange={setFilterMode} />
+
+        {cardsQuery.isSuccess && activeCards.length === 0 ? (
+          <StartWithInvoiceHero />
+        ) : (
+          <>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Próximas faturas</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Enviar fatura"
+                hitSlop={8}
+                onPress={() => router.push('/invoice/import')}
+              >
+                <Text style={styles.viewAllText}>Enviar fatura</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.invoicesCard}>
+              {activeCards.map((card, idx) => {
+                const cardName = creditCardLabel(card)
+                const open = Math.max(Number(card.current_balance) || 0, 0)
+                return (
+                  <View key={String(card.id)}>
+                    {idx > 0 && <View style={styles.invoiceDivider} />}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Faturas do cartão ${cardName}`}
+                      style={styles.invoiceItem}
+                      onPress={() =>
+                        router.push({
+                          pathname: '/invoices',
+                          params: { creditCardId: String(card.id), creditCardName: cardName },
+                        } as any)
+                      }
+                    >
+                      <View style={styles.invoiceIconWrapper}>
+                        <Feather name="credit-card" size={18} color={darkTheme.accent} />
+                      </View>
+                      <View style={styles.invoiceInfo}>
+                        <Text style={styles.invoiceTitle}>{cardName}</Text>
+                        <Text style={styles.invoiceSubtitle}>
+                          {open > 0 ? 'Em aberto' : 'Nada em aberto'} · vence dia {card.due_day}
+                        </Text>
+                      </View>
+                      <Text style={styles.invoiceAmount}>{formatCurrency(open)}</Text>
+                    </Pressable>
+                  </View>
+                )
+              })}
+            </View>
+
+            <CommittedOutlook outlook={outlookQuery.data} family={filterMode === 'family'} />
+          </>
+        )}
 
         {/* Alertas Section */}
         <View style={styles.sectionHeaderRow}>
@@ -206,55 +273,6 @@ export default function DashboardScreen() {
           </LinearGradient>
         </Pressable>
 
-        {/* Faturas Card */}
-        <View style={styles.invoicesCard}>
-          {cardsQuery.data && cardsQuery.data.some((card) => card.is_active !== false) ? (
-            cardsQuery.data.filter((card) => card.is_active !== false).map((card, idx) => {
-              const cardName = creditCardLabel(card)
-              const closingText = `Fecha dia ${card.closing_day} • vence dia ${card.due_day}`
-              const balanceText = formatCurrency(Math.max(Number(card.current_balance) || 0, 0))
-              return (
-                <View key={String(card.id)}>
-                  {idx > 0 && <View style={styles.invoiceDivider} />}
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Faturas do cartão ${cardName}`}
-                    style={styles.invoiceItem}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/invoices',
-                        params: { creditCardId: String(card.id), creditCardName: cardName },
-                      } as any)
-                    }
-                  >
-                    <View style={styles.invoiceIconWrapper}>
-                      <Feather name="credit-card" size={18} color={darkTheme.accent} />
-                    </View>
-                    <View style={styles.invoiceInfo}>
-                      <Text style={styles.invoiceTitle}>{cardName}</Text>
-                      <Text style={styles.invoiceSubtitle}>{closingText}</Text>
-                    </View>
-                    <Text style={styles.invoiceAmount}>{balanceText}</Text>
-                  </Pressable>
-                </View>
-              )
-            })
-          ) : (
-            <View style={styles.emptyInvoiceWrapper}>
-              <Feather name="credit-card" size={20} color={darkTheme.textSecondary} />
-              <View style={styles.emptyInvoiceInfo}>
-                <Text style={styles.emptyInvoiceTitle}>Nenhum cartão cadastrado</Text>
-                <Text style={styles.emptyInvoiceSubtitle}>Cadastre um cartão para acompanhar faturas e limites.</Text>
-              </View>
-              <Pressable
-                style={styles.alertActionPill}
-                onPress={() => router.push('/credit-card/modal')}
-              >
-                <Text style={styles.alertActionText}>Adicionar</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
       </ScrollView>
     </SafeAreaView>
   )
