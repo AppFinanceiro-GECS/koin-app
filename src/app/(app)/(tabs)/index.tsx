@@ -2,19 +2,20 @@ import Feather from '@expo/vector-icons/Feather'
 import { useQuery } from '@tanstack/react-query'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import { CommittedOutlook } from '@/components/home/CommittedOutlook'
+import { BankCardTile } from '@/components/BankCardTile'
+import { CommittedOutlook, type OutlookRange } from '@/components/home/CommittedOutlook'
 import { StartWithInvoiceHero } from '@/components/home/StartWithInvoiceHero'
 import { ScopeToggle, type Scope } from '@/components/ScopeToggle'
 import { activeCreditCards, creditCardLabel } from '@/lib/creditCards'
@@ -47,6 +48,8 @@ export default function DashboardScreen() {
   const monthName = MONTH_NAMES[now.getMonth()]
 
   const [filterMode, setFilterMode] = useState<Scope>('me')
+  const [outlookRange, setOutlookRange] = useState<OutlookRange>(6)
+  const { width: screenWidth } = useWindowDimensions()
 
   const summaryQuery = useQuery({
     queryKey: ['analytics', 'summary', currentYear, currentMonth],
@@ -67,8 +70,9 @@ export default function DashboardScreen() {
 
   // Parcelas já compradas nas faturas dos próximos meses (só eu ou família)
   const outlookQuery = useQuery({
-    queryKey: ['invoices', 'outlook', filterMode],
-    queryFn: async () => (await invoicesApi.outlook(6, filterMode)).data,
+    queryKey: ['invoices', 'outlook', filterMode, outlookRange],
+    queryFn: async () => (await invoicesApi.outlook(outlookRange, filterMode)).data,
+    placeholderData: (previous) => previous,
   })
 
   const notificationsQuery = useQuery({
@@ -95,6 +99,16 @@ export default function DashboardScreen() {
   const totalExpense = s?.total_expense ?? 0
   const totalIncome = s?.total_income ?? 0
   const balance = s?.balance ?? 0
+  const variation = s?.expense_variation ?? null
+  const cardExpense = Math.max(s?.credit_card_expenses ?? 0, 0)
+  const otherExpense = Math.max(s?.debit_cash_expenses ?? 0, 0)
+  const topCategories = useMemo(
+    () => [...(s?.categories ?? [])].filter((c) => c.total > 0).sort((a, b) => b.total - a.total).slice(0, 4),
+    [s]
+  )
+  const topCategoryTotal = topCategories[0]?.total ?? 0
+  const openTotal = activeCards.reduce((sum, c) => sum + Math.max(Number(c.current_balance) || 0, 0), 0)
+  const tileWidth = Math.min(screenWidth - 56, 340)
 
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
@@ -141,12 +155,92 @@ export default function DashboardScreen() {
       >
         <ScopeToggle value={filterMode} onChange={setFilterMode} />
 
+        {/* Resumo do mês */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Ver resumo de ${monthName}`}
+          onPress={() => router.push('/monthly-summary')}
+          style={({ pressed }) => pressed && styles.buttonPressed}
+        >
+          <LinearGradient
+            colors={['#1f0c3b', '#120e1e', '#0a0414']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.summaryCard}
+          >
+            <View style={styles.summaryHeader}>
+              <Text style={styles.summaryMonth}>Gastos de {monthName}</Text>
+              <Feather name="chevron-right" size={18} color={darkTheme.textSecondary} />
+            </View>
+            <View style={styles.summaryTotalRow}>
+              <Text style={[styles.summaryTotal, summaryQuery.isLoading && styles.loading]}>
+                {formatCurrency(totalExpense)}
+              </Text>
+              {variation !== null && Number.isFinite(variation) && (
+                <View
+                  style={[styles.variationPill, variation > 0 ? styles.variationUp : styles.variationDown]}
+                  accessible
+                  accessibilityLabel={`${Math.abs(Math.round(variation))}% ${variation > 0 ? 'a mais' : 'a menos'} que no mês passado`}
+                >
+                  <Feather
+                    name={variation > 0 ? 'trending-up' : 'trending-down'}
+                    size={12}
+                    color={variation > 0 ? darkTheme.error : darkTheme.success}
+                  />
+                  <Text style={[styles.variationText, { color: variation > 0 ? darkTheme.error : darkTheme.success }]}>
+                    {Math.abs(Math.round(variation))}%
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {cardExpense > 0 && otherExpense > 0 && (
+              <View style={styles.splitBox}>
+                <View style={styles.splitTrack}>
+                  <View style={[styles.splitCard, { flex: cardExpense }]} />
+                  <View style={[styles.splitOther, { flex: otherExpense }]} />
+                </View>
+                <View style={styles.splitLegend}>
+                  <Text style={styles.splitLabel}>
+                    <Text style={styles.splitDotCard}>●</Text> Cartão {formatCurrency(cardExpense)}
+                  </Text>
+                  <Text style={styles.splitLabel}>
+                    <Text style={styles.splitDotOther}>●</Text> Débito e dinheiro {formatCurrency(otherExpense)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryColumn}>
+                <Text style={styles.summaryColumnLabel}>Receitas</Text>
+                <Text style={styles.incomeValue}>{formatCurrency(totalIncome)}</Text>
+              </View>
+              <View style={styles.summaryColumn}>
+                <Text style={styles.summaryColumnLabel}>Sobrou</Text>
+                <Text style={[styles.balanceValue, balance < 0 && { color: darkTheme.error }]}>
+                  {formatCurrency(balance)}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.summaryNote}>Pagamentos de fatura ficam fora deste total.</Text>
+          </LinearGradient>
+        </Pressable>
+
         {cardsQuery.isSuccess && activeCards.length === 0 ? (
           <StartWithInvoiceHero />
         ) : (
           <>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Próximas faturas</Text>
+              <View>
+                <Text style={styles.sectionTitle}>Seus cartões</Text>
+                {activeCards.length > 0 && (
+                  <Text style={styles.sectionSubtitle}>
+                    {formatCurrency(openTotal)} em aberto em {activeCards.length}{' '}
+                    {activeCards.length === 1 ? 'cartão' : 'cartões'}
+                  </Text>
+                )}
+              </View>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Enviar fatura"
@@ -157,122 +251,103 @@ export default function DashboardScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.invoicesCard}>
-              {activeCards.map((card, idx) => {
-                const cardName = creditCardLabel(card)
-                const open = Math.max(Number(card.current_balance) || 0, 0)
-                return (
-                  <View key={String(card.id)}>
-                    {idx > 0 && <View style={styles.invoiceDivider} />}
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Faturas do cartão ${cardName}`}
-                      style={styles.invoiceItem}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/invoices',
-                          params: { creditCardId: String(card.id), creditCardName: cardName },
-                        } as any)
-                      }
-                    >
-                      <View style={styles.invoiceIconWrapper}>
-                        <Feather name="credit-card" size={18} color={darkTheme.accent} />
-                      </View>
-                      <View style={styles.invoiceInfo}>
-                        <Text style={styles.invoiceTitle}>{cardName}</Text>
-                        <Text style={styles.invoiceSubtitle}>
-                          {open > 0 ? 'Em aberto' : 'Nada em aberto'} · vence dia {card.due_day}
-                        </Text>
-                      </View>
-                      <Text style={styles.invoiceAmount}>{formatCurrency(open)}</Text>
-                    </Pressable>
-                  </View>
-                )
-              })}
-            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={activeCards.length > 1 ? tileWidth + 12 : undefined}
+              decelerationRate="fast"
+              contentContainerStyle={styles.carousel}
+              style={styles.carouselBleed}
+            >
+              {activeCards.map((card) => (
+                <BankCardTile
+                  key={String(card.id)}
+                  card={card}
+                  width={activeCards.length > 1 ? tileWidth : screenWidth - 32}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/invoices',
+                      params: { creditCardId: String(card.id), creditCardName: creditCardLabel(card) },
+                    } as any)
+                  }
+                />
+              ))}
+            </ScrollView>
 
-            <CommittedOutlook outlook={outlookQuery.data} family={filterMode === 'family'} />
+            <CommittedOutlook
+              key={filterMode}
+              outlook={outlookQuery.data}
+              family={filterMode === 'family'}
+              range={outlookRange}
+              onRangeChange={setOutlookRange}
+              loading={outlookQuery.isFetching && !outlookQuery.isRefetching}
+            />
           </>
         )}
 
-        {/* Alertas Section */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Alertas</Text>
+        {/* Para onde foi o dinheiro */}
+        {topCategories.length > 0 && (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Ver todos os alertas"
-            onPress={() =>
-              Alert.alert(
-                'Alertas',
-                unreadCount > 0 ? `Você possui ${unreadCount} alerta(s) pendente(s).` : 'Nenhum alerta pendente.'
-              )
-            }
+            accessibilityLabel="Ver gastos por categoria"
+            onPress={() => router.push('/monthly-summary')}
+            style={({ pressed }) => [styles.categoriesCard, pressed && styles.buttonPressed]}
           >
-            <Text style={styles.viewAllText}>Ver todos</Text>
+            <View style={styles.summaryHeader}>
+              <Text style={styles.sectionTitle}>Para onde foi</Text>
+              <Text style={styles.viewAllText}>Ver tudo</Text>
+            </View>
+            {topCategories.map((c, i) => (
+              <View key={`${c.category_id ?? 'none'}-${c.category_name}`} style={styles.categoryRow}>
+                <View style={styles.categoryTop}>
+                  <Text style={styles.categoryName} numberOfLines={1}>
+                    {c.category_name || 'Sem categoria'}
+                  </Text>
+                  <Text style={styles.categoryAmount}>{formatCurrency(c.total)}</Text>
+                </View>
+                <View style={styles.categoryTrack}>
+                  <View
+                    style={[
+                      styles.categoryFill,
+                      {
+                        width: `${topCategoryTotal > 0 ? Math.max((c.total / topCategoryTotal) * 100, 3) : 0}%`,
+                        opacity: 1 - i * 0.18,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
+            ))}
           </Pressable>
-        </View>
+        )}
 
-        <View style={styles.alertsContainer}>
-          {unreadCount === 0 ? (
-            <View style={styles.emptyCardMini}>
-              <Feather name="check-circle" size={16} color={darkTheme.accent} />
-              <Text style={styles.emptyTextMini}>Tudo em dia! Nenhum alerta pendente.</Text>
-            </View>
-          ) : (
-            <View style={styles.alertCard}>
-              <View style={styles.alertIconWrapper}>
-                <Feather name="bell" size={16} color={darkTheme.accent} />
-              </View>
-              <View style={styles.alertMessageWrapper}>
-                <Text style={styles.alertTitle}>Notificações pendentes</Text>
-                <Text style={styles.alertSubtitle}>
-                  Você tem {unreadCount} {unreadCount === 1 ? 'alerta' : 'alertas'} para revisar.
-                </Text>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Ver alertas"
-                onPress={() => router.push('/notifications' as any)}
-                style={({ pressed }) => [styles.alertActionPill, pressed && styles.buttonPressed]}
-              >
-                <Text style={styles.alertActionText}>Ver</Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-
-        {/* Cartão-resumo */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Ver resumo do mês"
-          onPress={() => router.push('/monthly-summary')}
-          style={({ pressed }) => pressed && styles.buttonPressed}
-        >
-          <LinearGradient
-            colors={['#0f0b1e', '#1f0c3b', '#0a0414']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.summaryCard}
+        {/* Alertas */}
+        {unreadCount > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Ver alertas"
+            onPress={() => router.push('/notifications' as any)}
+            style={({ pressed }) => [styles.alertCard, pressed && styles.buttonPressed]}
           >
-            <Text style={styles.summaryMonth}>Despesas de {monthName}</Text>
-            <Text style={styles.summaryTotal}>{formatCurrency(totalExpense)}</Text>
-
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryColumn}>
-                <Text style={styles.summaryColumnLabel}>Receitas</Text>
-                <Text style={styles.incomeValue}>{formatCurrency(totalIncome)}</Text>
-              </View>
-
-              <View style={styles.summaryColumn}>
-                <Text style={styles.summaryColumnLabel}>Sobrou</Text>
-                <Text style={styles.balanceValue}>{formatCurrency(balance)}</Text>
-              </View>
+            <View style={styles.alertIconWrapper}>
+              <Feather name="bell" size={16} color={darkTheme.accent} />
             </View>
-
-            <Text style={styles.summaryNote}>Pagamentos de fatura ficam fora deste total.</Text>
-          </LinearGradient>
-        </Pressable>
-
+            <View style={styles.alertMessageWrapper}>
+              <Text style={styles.alertTitle}>Notificações pendentes</Text>
+              <Text style={styles.alertSubtitle}>
+                Você tem {unreadCount} {unreadCount === 1 ? 'alerta' : 'alertas'} para revisar.
+              </Text>
+            </View>
+            <View style={styles.alertActionPill}>
+              <Text style={styles.alertActionText}>Ver</Text>
+            </View>
+          </Pressable>
+        ) : (
+          <View style={styles.emptyCardMini}>
+            <Feather name="check-circle" size={16} color={darkTheme.accent} />
+            <Text style={styles.emptyTextMini}>Tudo em dia! Nenhum alerta pendente.</Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
@@ -411,6 +486,57 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: darkTheme.textSecondary,
   },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  summaryTotalRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  loading: { opacity: 0.5 },
+  variationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+  },
+  variationUp: { backgroundColor: darkTheme.errorBackground, borderColor: darkTheme.errorBorder },
+  variationDown: { backgroundColor: darkTheme.successBackground, borderColor: darkTheme.successBorder },
+  variationText: { fontSize: 12, fontWeight: '600' },
+  splitBox: { gap: 6 },
+  splitTrack: {
+    flexDirection: 'row',
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    gap: 2,
+    backgroundColor: darkTheme.surfaceSecondary,
+  },
+  splitCard: { backgroundColor: darkTheme.primary },
+  splitOther: { backgroundColor: darkTheme.accentLight },
+  splitLegend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 14, rowGap: 2 },
+  splitLabel: { fontSize: 12, color: darkTheme.textSecondary },
+  splitDotCard: { color: darkTheme.primary },
+  splitDotOther: { color: darkTheme.accentLight },
+  sectionSubtitle: { fontSize: 12, color: darkTheme.textSecondary, marginTop: 2 },
+  carouselBleed: { marginHorizontal: -16 },
+  carousel: { paddingHorizontal: 16, gap: 12 },
+  categoriesCard: {
+    backgroundColor: darkTheme.surface,
+    borderWidth: 1,
+    borderColor: darkTheme.border,
+    borderRadius: 20,
+    padding: 16,
+    gap: 12,
+  },
+  categoryRow: { gap: 6 },
+  categoryTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  categoryName: { flex: 1, fontSize: 13, color: darkTheme.text },
+  categoryAmount: { fontSize: 13, fontWeight: '600', color: darkTheme.text },
+  categoryTrack: { height: 6, borderRadius: 3, backgroundColor: darkTheme.surfaceSecondary, overflow: 'hidden' },
+  categoryFill: { height: 6, borderRadius: 3, backgroundColor: darkTheme.accent },
   summaryTotal: {
     fontSize: 32,
     fontWeight: '600',
