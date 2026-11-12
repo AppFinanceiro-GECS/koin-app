@@ -62,23 +62,24 @@ export default function FamilyInviteScreen() {
   const emailValid = EMAIL_PATTERN.test(email.trim())
   const submitDisabled = !sent && (!emailValid || invite.isPending || !canInvite)
 
+  const sentCode = sent?.code || sent?.token || ''
+
   const handleCopy = async () => {
-    if (!sent?.invite_url) return
-    await Clipboard.setStringAsync(sent.invite_url)
+    if (!sentCode) return
+    await Clipboard.setStringAsync(sentCode)
     setCopied(true)
     setTimeout(() => setCopied(false), 2500)
   }
 
   const handleShare = async () => {
-    if (!sent?.invite_url) return
+    if (!sentCode) return
     try {
       await Share.share({
-        title: 'Convite para o Koin',
-        message: `Você foi convidado para participar da minha família no Koin! Acesse o link para aceitar o convite: ${sent.invite_url}`,
-        url: sent.invite_url,
+        title: 'Código de convite do Koin',
+        message: `Você foi convidado para o Koin!\n\nSeu código de convite:\n${sentCode}\n\nPara acessar:\n1. Baixe o aplicativo Koin\n2. Na tela de login, toque em "Tenho um convite"\n3. Cole o código acima para concluir o cadastro.`,
       })
     } catch (err) {
-      console.warn('Erro ao compartilhar:', err)
+      console.warn('Erro ao compartilhar código:', err)
     }
   }
 
@@ -104,7 +105,7 @@ export default function FamilyInviteScreen() {
             Convide alguém para a {family ? familyDisplayName(family.members) : 'família'}
           </Text>
           <Text style={styles.lead}>
-            A pessoa recebe um link por e-mail e só consegue criar a conta com ele.
+            A pessoa recebe o código de convite para criar a conta no aplicativo.
           </Text>
 
           <Text style={styles.fieldLabel}>E-mail de quem você quer convidar</Text>
@@ -177,36 +178,30 @@ export default function FamilyInviteScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.infoCard}
           >
-            <Text style={styles.infoLabel}>{sent ? 'Convite enviado' : 'Validade do convite'}</Text>
+            <Text style={styles.infoLabel}>{sent ? 'Código de convite gerado' : 'Validade do convite'}</Text>
             <Text style={styles.infoValue}>{sent ? `Até ${formatExpiry(sent.expires_at)}` : '48 horas'}</Text>
             <Text style={styles.infoBody}>
               {sent
-                ? `Enviamos um link para ${sent.email}. Ele já preenche o cadastro.`
-                : 'Enviamos um link por e-mail que já preenche o cadastro.'}
+                ? `Convite gerado para ${sent.email}. Compartilhe o código abaixo com a pessoa.`
+                : 'O código de convite gerado é válido por 48 horas.'}
             </Text>
           </LinearGradient>
 
-          {sent?.invite_url && (
+          {Boolean(sentCode) && (
             <View style={styles.shareCard}>
-              <Text style={styles.shareTitle}>Compartilhar convite diretamente</Text>
+              <Text style={styles.shareTitle}>Código de convite</Text>
               <Text style={styles.shareSubtitle}>
-                Envie o link para a pessoa por WhatsApp ou copie para a área de transferência.
+                A pessoa deve inserir este código no app Koin na opção {`"Tenho um convite"`}:
               </Text>
+
+              <View style={styles.codeContainer}>
+                <Text selectable style={styles.codeText}>{sentCode}</Text>
+              </View>
 
               <View style={styles.shareButtonsRow}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Compartilhar link de convite"
-                  onPress={handleShare}
-                  style={({ pressed }) => [styles.shareActionButton, pressed && styles.pressed]}
-                >
-                  <Feather name="share-2" size={16} color="#ffffff" style={{ marginRight: 6 }} />
-                  <Text style={styles.shareActionText}>Compartilhar</Text>
-                </Pressable>
-
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Copiar link de convite"
+                  accessibilityLabel="Copiar código de convite"
                   onPress={handleCopy}
                   style={({ pressed }) => [styles.copyActionButton, pressed && styles.pressed]}
                 >
@@ -217,8 +212,18 @@ export default function FamilyInviteScreen() {
                     style={{ marginRight: 6 }}
                   />
                   <Text style={[styles.copyActionText, copied && { color: '#4ade80' }]}>
-                    {copied ? 'Copiado!' : 'Copiar link'}
+                    {copied ? 'Código copiado!' : 'Copiar código'}
                   </Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Compartilhar código de convite"
+                  onPress={handleShare}
+                  style={({ pressed }) => [styles.shareActionButton, pressed && styles.pressed]}
+                >
+                  <Feather name="share-2" size={16} color="#ffffff" style={{ marginRight: 6 }} />
+                  <Text style={styles.shareActionText}>Compartilhar</Text>
                 </Pressable>
               </View>
             </View>
@@ -422,6 +427,25 @@ const styles = StyleSheet.create({
     color: darkTheme.textSecondary,
     marginBottom: 16,
     lineHeight: 18,
+  },
+  codeContainer: {
+    backgroundColor: '#0c0717',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#4c1d95',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  codeText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#c084fc',
+    letterSpacing: 1.5,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    textAlign: 'center',
   },
   shareButtonsRow: {
     flexDirection: 'row',
