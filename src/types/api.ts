@@ -104,6 +104,8 @@ export interface CreditCardWrite {
   card_brand?: string | null
   is_active?: boolean
   ownership_type?: 'personal' | 'household'
+  /** Ao mudar ownership_type, leva junto as compras das faturas ainda não pagas */
+  apply_to_open_invoices?: boolean
 }
 
 // 409 do DELETE /credit-cards/{id} sem force

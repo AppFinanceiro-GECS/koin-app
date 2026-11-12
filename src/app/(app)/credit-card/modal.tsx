@@ -20,6 +20,7 @@ import { invalidateCreditCardQueries, linkedDataFromError } from '@/lib/creditCa
 import { getApiErrorMessage } from '@/lib/errors'
 import { formatCurrency, parseAmount } from '@/lib/format'
 import { cardBrands } from '@/schemas/creditCard.schema'
+import { HouseCardToggle } from '@/components/family/HouseCardToggle'
 import { creditCardsApi } from '@/services/accounts.api'
 import { darkTheme } from '@/theme/colors'
 import type { CreditCardDetail, CreditCardWrite } from '@/types/api'
@@ -391,6 +392,8 @@ function CreditCardForm({
               Essas datas definem o período da fatura. Compras após o fechamento entram na próxima fatura.
             </Text>
           </View>
+
+          {isEditing && card && <HouseCardToggle card={card} />}
 
           {isEditing && card?.has_invoice_password && (
             <View style={styles.passwordRow}>
