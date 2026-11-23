@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { PasswordInput } from '@/components/PasswordInput'
 import { IconTile } from '@/components/IconTile'
 import { ScreenHeader } from '@/components/ScreenHeader'
 import { Tag } from '@/components/Tag'
@@ -34,11 +35,12 @@ const NOT_IMPLEMENTED_STATUSES = [404, 405, 501]
 const UNAVAILABLE_MESSAGE =
   'A exclusão de conta ainda não está disponível. Nada foi apagado e você continua conectado.'
 
-function Field({ label, ...input }: { label: string } & TextInputProps) {
+function Field({ label, secureTextEntry, ...input }: { label: string } & TextInputProps) {
+  const Input = secureTextEntry ? PasswordInput : TextInput
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
+      <Input
         accessibilityLabel={label}
         autoCorrect={false}
         placeholderTextColor={darkTheme.textMuted}

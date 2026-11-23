@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { BankCardTile } from '@/components/BankCardTile'
 import { CommittedOutlook, type OutlookRange } from '@/components/home/CommittedOutlook'
+import { EventGiftCard } from '@/components/home/EventGiftCard'
 import { StartWithInvoiceHero } from '@/components/home/StartWithInvoiceHero'
 import { ScopeToggle, type Scope } from '@/components/ScopeToggle'
 import { activeCreditCards, creditCardLabel } from '@/lib/creditCards'
@@ -153,6 +154,8 @@ export default function DashboardScreen() {
           />
         }
       >
+        <EventGiftCard />
+
         <ScopeToggle value={filterMode} onChange={setFilterMode} />
 
         {/* Resumo do mês */}
