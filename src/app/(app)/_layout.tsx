@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { router, Stack } from 'expo-router'
 import { useEffect } from 'react'
 
+import { isEventSignupPending } from '@/lib/event'
 import { hasSeenOnboarding } from '@/lib/onboarding'
 import { authApi } from '@/services/auth.api'
 import { useAuthStore } from '@/stores/authStore'
@@ -22,6 +23,11 @@ export default function AppLayout() {
   const userId = user?.id
   useEffect(() => {
     if (!userId) return
+    // Acabou de se cadastrar no stand: confirma o e-mail antes do tutorial
+    if (isEventSignupPending()) {
+      router.replace('/event/verify')
+      return
+    }
     let cancelled = false
     hasSeenOnboarding(userId).then((seen) => {
       if (!seen && !cancelled) router.replace('/onboarding')
@@ -43,6 +49,8 @@ export default function AppLayout() {
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false, animation: 'fade' }} />
+      <Stack.Screen name="event/verify" options={{ headerShown: false, gestureEnabled: false }} />
+      <Stack.Screen name="event/stand" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="notifications" options={{ headerShown: false }} />
       <Stack.Screen name="installments" options={{ headerShown: false }} />
       <Stack.Screen name="invoices" options={{ headerShown: false }} />

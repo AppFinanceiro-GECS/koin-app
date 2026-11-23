@@ -30,6 +30,7 @@ import { HouseCardToggle } from '@/components/family/HouseCardToggle'
 import { InvoiceCardBanner } from '@/components/invoices/InvoiceCardBanner'
 import { InvoicePaymentReview, type InvoicePaidResult } from '@/components/invoices/InvoicePaymentReview'
 import { ReceiptCardBanner } from '@/components/invoices/ReceiptCardBanner'
+import { PasswordInput } from '@/components/PasswordInput'
 import { activeCreditCards, creditCardLabel, invalidateCreditCardQueries } from '@/lib/creditCards'
 import { accountsApi, creditCardsApi } from '@/services/accounts.api'
 import { documentsApi } from '@/services/documents.api'
@@ -1132,7 +1133,7 @@ export default function InvoiceImportScreen() {
                     {hasPassword ? 'Senha do PDF (necessária)' : 'Senha do PDF (se houver)'}
                   </Text>
                 </View>
-                <TextInput
+                <PasswordInput
                   ref={passwordInputRef}
                   value={pdfPassword}
                   onChangeText={(val) => {
@@ -1144,7 +1145,6 @@ export default function InvoiceImportScreen() {
                       scrollViewRef.current?.scrollToEnd({ animated: true })
                     }, 150)
                   }}
-                  secureTextEntry
                   placeholder={hasPassword ? 'Digite a senha do PDF' : 'Digite a senha caso o arquivo seja protegido'}
                   placeholderTextColor={darkTheme.textMuted}
                   style={[styles.passwordInput, passwordError && styles.inputErrorBorder]}

@@ -17,7 +17,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { KoinLogo } from '@/components/KoinLogo'
+import { PasswordInput } from '@/components/PasswordInput'
 import { getApiErrorMessage } from '@/lib/errors'
+import { EVENT_CODE } from '@/lib/event'
 import { authApi } from '@/services/auth.api'
 import { useAuthStore } from '@/stores/authStore'
 import { darkTheme } from '@/theme/colors'
@@ -86,13 +88,30 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.mainContainer}>
+            {/* Build do evento: o cadastro vem antes do login */}
+            {EVENT_CODE && !isKeyboardVisible ? (
+              <Pressable
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.eventCard, pressed && styles.eventCardPressed]}
+                onPress={() => router.push('/signup')}
+              >
+                <Text style={styles.eventEmoji}>🍫</Text>
+                <View style={styles.eventTexts}>
+                  <Text style={styles.eventTitle}>Primeira vez aqui?</Text>
+                  <Text style={styles.eventSubtitle}>Crie sua conta e ganhe um bombom no stand</Text>
+                </View>
+                <Text style={styles.eventCta}>Criar conta</Text>
+              </Pressable>
+            ) : null}
             {/* Header / Brand lockup */}
             <View style={[styles.header, isKeyboardVisible && styles.headerCompact]}>
               <KoinLogo size={isKeyboardVisible ? 0.8 : 1} />
               <Text style={styles.title}>Entrar</Text>
               {!isKeyboardVisible && (
                 <Text style={styles.subtitle}>
-                  O acesso ao app é feito por convite. Já tem conta? Entre com seu e-mail.
+                  {EVENT_CODE
+                    ? 'Já tem conta? Entre com seu e-mail.'
+                    : 'O acesso ao app é feito por convite. Já tem conta? Entre com seu e-mail.'}
                 </Text>
               )}
             </View>
@@ -119,14 +138,13 @@ export default function LoginScreen() {
 
               <View style={styles.fieldContainer}>
                 <Text style={styles.label}>Senha</Text>
-                <TextInput
+                <PasswordInput
                   style={[styles.input, error && styles.inputError]}
                   value={password}
                   onChangeText={(val) => {
                     setPassword(val)
                     if (error) setError(null)
                   }}
-                  secureTextEntry
                   autoComplete="password"
                   textContentType="password"
                   placeholder="••••••••"
@@ -180,9 +198,11 @@ export default function LoginScreen() {
                   styles.secondaryButton,
                   pressed && styles.secondaryButtonPressed,
                 ]}
-                onPress={() => router.push('/invite')}
+                onPress={() => router.push(EVENT_CODE ? '/signup' : '/invite')}
               >
-                <Text style={styles.secondaryButtonText}>Tenho um convite</Text>
+                <Text style={styles.secondaryButtonText}>
+                  {EVENT_CODE ? 'Criar conta' : 'Tenho um convite'}
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -191,7 +211,9 @@ export default function LoginScreen() {
           {!isKeyboardVisible && (
             <View style={styles.footer}>
               <Text style={styles.footerText}>
-                Não tem convite? Peça a alguém do seu grupo familiar para enviar um.
+                {EVENT_CODE
+                  ? 'Use o código do evento no cadastro: ele já vem preenchido.'
+                  : 'Não tem convite? Peça a alguém do seu grupo familiar para enviar um.'}
               </Text>
             </View>
           )}
@@ -202,6 +224,23 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  eventCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    marginBottom: 20,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: darkTheme.borderFocus,
+    backgroundColor: darkTheme.surfaceSecondary,
+  },
+  eventCardPressed: { opacity: 0.85 },
+  eventEmoji: { fontSize: 30 },
+  eventTexts: { flex: 1, gap: 2 },
+  eventTitle: { fontSize: 15, fontWeight: '600', color: darkTheme.text },
+  eventSubtitle: { fontSize: 13, color: darkTheme.textSecondary },
+  eventCta: { fontSize: 14, fontWeight: '700', color: darkTheme.accent },
   safe: {
     flex: 1,
     backgroundColor: darkTheme.background,

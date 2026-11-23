@@ -16,6 +16,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { PasswordInput } from '@/components/PasswordInput'
 import { getApiErrorMessage } from '@/lib/errors'
 import { authApi } from '@/services/auth.api'
 import { useAuthStore } from '@/stores/authStore'
@@ -189,14 +190,13 @@ export default function InviteScreen() {
 
                 <View style={styles.fieldContainer}>
                   <Text style={styles.label}>Crie uma senha</Text>
-                  <TextInput
+                  <PasswordInput
                     style={styles.input}
                     value={password}
                     onChangeText={(val) => {
                       setPassword(val)
                       if (formError) setFormError(null)
                     }}
-                    secureTextEntry
                     autoComplete="new-password"
                     placeholder="••••••••"
                     placeholderTextColor={darkTheme.textMuted}
@@ -205,14 +205,13 @@ export default function InviteScreen() {
 
                 <View style={styles.fieldContainer}>
                   <Text style={styles.label}>Confirme a senha</Text>
-                  <TextInput
+                  <PasswordInput
                     style={styles.input}
                     value={confirmPassword}
                     onChangeText={(val) => {
                       setConfirmPassword(val)
                       if (formError) setFormError(null)
                     }}
-                    secureTextEntry
                     autoComplete="new-password"
                     placeholder="••••••••"
                     placeholderTextColor={darkTheme.textMuted}
